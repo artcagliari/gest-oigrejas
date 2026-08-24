@@ -1,0 +1,22 @@
+# Dependencies and build output
+node_modules/
+dist/
+test-results/
+playwright-report/
+*.tsbuildinfo
+
+# Local environment and credentials
+.env
+.env.*
+!.env.example
+
+# Supabase local and linked-project state
+supabase/.temp/
+supabase/.branches/
+
+# Editors and operating system
+.DS_Store
+.idea/
+.vscode/
+*.log
+
