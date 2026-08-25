@@ -1517,6 +1517,7 @@ function PersonDetail({
                   .join(", "),
               ],
               ["Bairro", person.address.district],
+              ["Complemento", person.address.complement],
               ["CEP", person.address.zip],
               [
                 "Cidade/UF",
@@ -1950,11 +1951,22 @@ function PersonForm({
                     value={form.address.district}
                     onChange={(v) => address("district", v)}
                   />
-                  <Field
-                    label="CEP"
+                  <CepField
                     required
                     value={form.address.zip}
                     onChange={(v) => address("zip", v)}
+                    onAddress={(found) =>
+                      setForm((current) => ({
+                        ...current,
+                        address: { ...current.address, ...found },
+                      }))
+                    }
+                  />
+                  <Field
+                    label="Complemento"
+                    required
+                    value={form.address.complement}
+                    onChange={(v) => address("complement", v)}
                   />
                   <Field
                     label="Cidade"
@@ -3870,11 +3882,22 @@ function PublicChurchRegistrationPage({ token }: { token: string }) {
                     value={form.address.district}
                     onChange={(value) => setAddress("district", value)}
                   />
-                  <Field
-                    label="CEP"
+                  <CepField
                     required
                     value={form.address.zip}
                     onChange={(value) => setAddress("zip", value)}
+                    onAddress={(found) =>
+                      setForm((current) => ({
+                        ...current,
+                        address: { ...current.address, ...found },
+                      }))
+                    }
+                  />
+                  <Field
+                    label="Complemento"
+                    required
+                    value={form.address.complement}
+                    onChange={(value) => setAddress("complement", value)}
                   />
                   <Field
                     label="Cidade"
@@ -5528,6 +5551,87 @@ function FormSection({
     </fieldset>
   );
 }
+type CepAddress = Pick<
+  Person["address"],
+  "street" | "district" | "complement" | "city" | "state" | "zip"
+>;
+function CepField({
+  value,
+  onChange,
+  onAddress,
+  required,
+}: {
+  value?: string;
+  onChange: (value: string) => void;
+  onAddress: (address: CepAddress) => void;
+  required?: boolean;
+}) {
+  const [loadingCep, setLoadingCep] = useState(false),
+    [cepError, setCepError] = useState("");
+  async function searchCep() {
+    const cep = (value ?? "").replace(/\D/g, "");
+    if (cep.length !== 8) {
+      setCepError("Digite um CEP com 8 números.");
+      return;
+    }
+    setLoadingCep(true);
+    setCepError("");
+    try {
+      const response = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+      if (!response.ok) throw new Error("Não foi possível consultar o CEP.");
+      const data = (await response.json()) as {
+        erro?: boolean;
+        cep?: string;
+        logradouro?: string;
+        complemento?: string;
+        bairro?: string;
+        localidade?: string;
+        uf?: string;
+      };
+      if (data.erro) throw new Error("CEP não encontrado.");
+      onAddress({
+        zip: data.cep ?? value,
+        street: data.logradouro ?? "",
+        district: data.bairro ?? "",
+        complement: data.complemento ?? "",
+        city: data.localidade ?? "",
+        state: data.uf ?? "",
+      });
+    } catch (reason) {
+      setCepError(
+        reason instanceof Error ? reason.message : "CEP não encontrado.",
+      );
+    } finally {
+      setLoadingCep(false);
+    }
+  }
+  return (
+    <label className="cep-field">
+      CEP
+      <span>
+        <input
+          required={required}
+          inputMode="numeric"
+          placeholder="00000-000"
+          value={value ?? ""}
+          onChange={(event) => onChange(maskCep(event.target.value))}
+          onBlur={() => void searchCep()}
+        />
+        <button
+          type="button"
+          className="secondary"
+          disabled={loadingCep}
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => void searchCep()}
+        >
+          {loadingCep ? <LoaderCircle className="spin" /> : <Search />}
+          Buscar
+        </button>
+      </span>
+      {cepError && <small className="field-error">{cepError}</small>}
+    </label>
+  );
+}
 function Field({
   label,
   value,
@@ -5632,6 +5736,12 @@ function maskBrazilianDate(value: string) {
   if (digits.length <= 2) return digits;
   if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
   return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+}
+function maskCep(value: string) {
+  const digits = value.replace(/\D/g, "").slice(0, 8);
+  return digits.length > 5
+    ? `${digits.slice(0, 5)}-${digits.slice(5)}`
+    : digits;
 }
 function toBrazilianDate(value?: string) {
   if (!value) return "";

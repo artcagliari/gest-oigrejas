@@ -44,6 +44,7 @@ export type Person = {
     street?: string;
     number?: string;
     district?: string;
+    complement?: string;
     zip?: string;
     city?: string;
     state?: string;

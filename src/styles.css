@@ -2255,6 +2255,27 @@ button.danger svg {
 .children-name-list .icon-only {
   margin-bottom: 1px;
 }
+.cep-field > span {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: stretch;
+  gap: 7px;
+  margin-top: 6px;
+}
+.form-grid .cep-field > span input {
+  margin-top: 0;
+}
+.cep-field button {
+  min-width: 94px;
+}
+.cep-field button svg {
+  width: 15px;
+}
+.field-error {
+  display: block;
+  color: #a64940;
+  margin-top: 5px;
+}
 .add-child-name {
   justify-self: start;
 }

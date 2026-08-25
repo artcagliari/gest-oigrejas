@@ -11,6 +11,7 @@ Sistema multi-igreja com Administrador da Plataforma isolado e Gestores Gerais p
 - pessoas com dados pessoais, endereço, categorias, funções, grupos, jornada espiritual, anotações e consentimentos LGPD;
 - link público de pré-cadastro por igreja, com validade, vínculo automático, prevenção de duplicidade e consentimento LGPD;
 - cadastro obrigatório com nascimento em `dd/mm/aaaa`, sexo, vínculo, endereço, vida cristã e nomes de múltiplos filhos; somente o telefone alternativo é opcional;
+- consulta de CEP pelo ViaCEP, com preenchimento de rua, bairro, complemento, cidade e estado;
 - grupos de consolidação/ensino, liderança, capacidade, aulas e chamada individual;
 - departamentos com modelos, descrição e cargos próprios;
 - agenda mensal/lista, tipos de evento e criação de cultos;
@@ -37,7 +38,8 @@ Copie `.env.example` para `.env.local` e informe a URL e a chave anônima. No SQ
 8. `supabase/migrations/20260824230000_church_self_registration.sql`
 9. `supabase/migrations/20260824233000_person_required_fields.sql`
 10. `supabase/migrations/20260824234000_person_gender_values.sql`
-11. `supabase/seed.sql`
+11. `supabase/migrations/20260824235000_person_address_complement.sql`
+12. `supabase/seed.sql`
 
 O seed não cria dados fictícios nem igrejas. Ele transforma o único usuário existente no Auth em Administrador da Plataforma. Por segurança, ele para com erro se houver zero ou mais de um usuário.
 
@@ -63,6 +65,8 @@ Cada autorização guarda texto, versão, culto, criança, responsável, data, d
 ## Link de cadastro da igreja
 
 Em **Pessoas**, use **Gerar e copiar link**. O endereço público vale por 90 dias e pode ser enviado por WhatsApp ou e-mail. O membro informa os dados pessoais, contato, endereço, vida cristã e consentimentos sem receber acesso administrativo. A ficha entra na igreja correta com a categoria **Pré-cadastro** para revisão do Gestor Geral.
+
+Ao informar um CEP com oito dígitos e sair do campo, o sistema consulta o ViaCEP. Também é possível usar o botão **Buscar**. O endereço retornado permanece editável, inclusive o complemento.
 
 ## Modelo de segurança
 

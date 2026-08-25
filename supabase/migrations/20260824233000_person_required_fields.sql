@@ -67,6 +67,7 @@ begin
   if trim(coalesce(person_address->>'street', '')) = ''
     or trim(coalesce(person_address->>'number', '')) = ''
     or trim(coalesce(person_address->>'district', '')) = ''
+    or trim(coalesce(person_address->>'complement', '')) = ''
     or trim(coalesce(person_address->>'zip', '')) = ''
     or trim(coalesce(person_address->>'city', '')) = ''
     or trim(coalesce(person_address->>'state', '')) = ''
@@ -115,7 +116,8 @@ begin
     person_phone, nullif(trim(coalesce(registration_data->>'phone_secondary', '')), ''),
     jsonb_build_object(
       'street', trim(person_address->>'street'), 'number', trim(person_address->>'number'),
-      'district', trim(person_address->>'district'), 'zip', trim(person_address->>'zip'),
+      'district', trim(person_address->>'district'), 'complement', trim(person_address->>'complement'),
+      'zip', trim(person_address->>'zip'),
       'city', trim(person_address->>'city'), 'state', trim(person_address->>'state'),
       'country', trim(person_address->>'country')
     ),

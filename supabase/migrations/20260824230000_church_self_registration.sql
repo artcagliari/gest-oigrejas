@@ -146,6 +146,7 @@ begin
       'street', nullif(trim(coalesce(person_address->>'street', '')), ''),
       'number', nullif(trim(coalesce(person_address->>'number', '')), ''),
       'district', nullif(trim(coalesce(person_address->>'district', '')), ''),
+      'complement', nullif(trim(coalesce(person_address->>'complement', '')), ''),
       'zip', nullif(trim(coalesce(person_address->>'zip', '')), ''),
       'city', nullif(trim(coalesce(person_address->>'city', '')), ''),
       'state', nullif(trim(coalesce(person_address->>'state', '')), ''),

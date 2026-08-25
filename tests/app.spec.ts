@@ -1,6 +1,19 @@
 import { expect, test } from "@playwright/test";
 
 test.beforeEach(async ({ page }) => {
+  await page.route("https://viacep.com.br/ws/**", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        cep: "01000-000",
+        logradouro: "Rua preenchida pelo CEP",
+        complemento: "Apto 10",
+        bairro: "Centro",
+        localidade: "São Paulo",
+        uf: "SP",
+      }),
+    });
+  });
   await page.addInitScript(() => localStorage.clear());
   await page.goto("/");
 });
@@ -69,6 +82,7 @@ test("cadastra e abre uma ficha aprofundada", async ({ page }) => {
   await page.getByLabel("Número").fill("100");
   await page.getByLabel("Bairro").fill("Centro");
   await page.getByLabel("CEP").fill("01000-000");
+  await page.getByLabel("Complemento").fill("Casa");
   await page.getByLabel("Cidade").fill("São Paulo");
   await page.getByLabel("Estado", { exact: true }).fill("SP");
   await page.getByRole("button", { name: /Continuar/ }).click();
@@ -248,12 +262,13 @@ test("membro faz pré-cadastro pelo link e já fica vinculado à igreja", async 
   await page.getByLabel("Nome completo do filho 2").fill("Helena Cadastro");
   await page.getByLabel("Telefone principal").fill("(11) 98888-7766");
   await page.getByLabel("E-mail").fill("rafael.cadastro@exemplo.org");
-  await page.getByLabel("Rua / endereço").fill("Rua Central");
-  await page.getByLabel("Número").fill("25");
-  await page.getByLabel("Bairro").fill("Centro");
   await page.getByLabel("CEP").fill("01000-000");
-  await page.getByLabel("Cidade").fill("São Paulo");
-  await page.getByLabel("Estado", { exact: true }).fill("SP");
+  await page.getByLabel("CEP").press("Tab");
+  await expect(page.getByLabel("Rua / endereço")).toHaveValue(
+    "Rua preenchida pelo CEP",
+  );
+  await expect(page.getByLabel("Cidade")).toHaveValue("São Paulo");
+  await page.getByLabel("Número").fill("25");
   await page.getByLabel("Data de conversão").fill("2021-05-01");
   await page.getByLabel("É batizado(a)?").selectOption("true");
   await page
