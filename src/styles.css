@@ -1757,6 +1757,9 @@ nav {
 .child-print-consent {
   margin-top: 16px;
 }
+.child-card > button + button {
+  margin-top: 8px;
+}
 .authorization-table {
   overflow: hidden;
 }

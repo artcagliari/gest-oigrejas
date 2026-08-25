@@ -48,6 +48,7 @@ import {
   Church,
   ChurchEvent,
   ChildAuthorization,
+  DailyChildAuthorization,
   ChildProfile,
   Department,
   DepartmentAssignment,
@@ -75,6 +76,7 @@ import {
   saveChurch,
   saveChild,
   saveChildAuthorization,
+  saveDailyChildAuthorization,
   saveDepartment,
   saveEvent,
   saveFinancialAccount,
@@ -116,6 +118,7 @@ type Modal =
   | { type: "group"; group?: TeachingGroup }
   | { type: "child" }
   | { type: "child-authorization"; authorization: ChildAuthorization }
+  | { type: "daily-child-authorization"; childId: string }
   | { type: "department"; department?: Department }
   | { type: "department-delete"; department: Department }
   | { type: "teaching-meeting"; group: TeachingGroup }
@@ -414,6 +417,9 @@ function AuthenticatedApp() {
               onAuthorization={(authorization) =>
                 setModal({ type: "child-authorization", authorization })
               }
+              onDailyAuthorization={(childId) =>
+                setModal({ type: "daily-child-authorization", childId })
+              }
               onGenerate={(eventId) =>
                 persist(
                   () => generateKidsAuthorizations(workspace, eventId),
@@ -540,6 +546,19 @@ function AuthenticatedApp() {
             persist(
               () => saveChildAuthorization(workspace, authorization),
               "Decisão do responsável registrada.",
+            )
+          }
+        />
+      )}
+      {modal?.type === "daily-child-authorization" && (
+        <DailyChildAuthorizationForm
+          childId={modal.childId}
+          data={workspace}
+          onClose={() => setModal(null)}
+          onSave={(authorization) =>
+            persist(
+              () => saveDailyChildAuthorization(workspace, authorization),
+              "Confirmação do termo físico registrada para hoje.",
             )
           }
         />
@@ -2336,12 +2355,14 @@ function Kids({
   data,
   onAddChild,
   onAuthorization,
+  onDailyAuthorization,
   onGenerate,
   notify,
 }: {
   data: WorkspaceData;
   onAddChild: () => void;
   onAuthorization: (authorization: ChildAuthorization) => void;
+  onDailyAuthorization: (childId: string) => void;
   onGenerate: (eventId: string) => void;
   notify: (message: string) => void;
 }) {
@@ -2462,6 +2483,11 @@ function Kids({
         <div className="children-grid">
           {data.children.map((child) => {
             const person = childPerson(child.person_id);
+            const todayAuthorization = data.dailyChildAuthorizations.find(
+              (item) =>
+                item.child_id === child.person_id &&
+                item.authorization_date === localDateIso(),
+            );
             return (
               <article className="card child-card" key={child.person_id}>
                 <div className="child-card-head">
@@ -2501,6 +2527,21 @@ function Kids({
                   onClick={() => printGeneralChildConsent(child, data)}
                 >
                   <Printer /> Gerar autorização do culto de hoje
+                </button>
+                <button
+                  className={
+                    todayAuthorization?.decision === "authorized"
+                      ? "primary wide"
+                      : "secondary wide"
+                  }
+                  onClick={() => onDailyAuthorization(child.person_id)}
+                >
+                  <FileSignature />
+                  {todayAuthorization
+                    ? todayAuthorization.decision === "authorized"
+                      ? "Termo de hoje confirmado"
+                      : "Termo de hoje: não autorizado"
+                    : "Confirmar termo assinado"}
                 </button>
               </article>
             );
@@ -2620,6 +2661,12 @@ function ageFromDate(date: string) {
   if (today < new Date(today.getFullYear(), birth.getMonth(), birth.getDate()))
     age--;
   return age;
+}
+function localDateIso(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 function printGeneralChildConsent(profile: ChildProfile, data: WorkspaceData) {
   const child = data.people.find((person) => person.id === profile.person_id);
@@ -3061,6 +3108,141 @@ function ChildAuthorizationForm({
             label="Nome completo do responsável que manifestou a decisão"
             wide
             required
+            value={form.signedName}
+            onChange={(value) => setForm({ ...form, signedName: value })}
+          />
+          {error && (
+            <p className="field-error" role="alert">
+              {error}
+            </p>
+          )}
+        </div>
+        <ModalActions onClose={onClose} />
+      </form>
+    </ModalShell>
+  );
+}
+
+function DailyChildAuthorizationForm({
+  childId,
+  data,
+  onClose,
+  onSave,
+}: {
+  childId: string;
+  data: WorkspaceData;
+  onClose: () => void;
+  onSave: (authorization: DailyChildAuthorization) => void;
+}) {
+  const child = data.people.find((person) => person.id === childId);
+  const guardianLink =
+    data.guardians.find(
+      (item) => item.child_id === childId && item.primary_contact,
+    ) ?? data.guardians.find((item) => item.child_id === childId);
+  const guardian = data.people.find(
+    (person) => person.id === guardianLink?.guardian_person_id,
+  );
+  const today = localDateIso();
+  const existing = data.dailyChildAuthorizations.find(
+    (item) => item.child_id === childId && item.authorization_date === today,
+  );
+  const [form, setForm] = useState({
+    decision: existing?.decision ?? ("authorized" as "authorized" | "denied"),
+    photo: existing?.allow_photo ?? false,
+    video: existing?.allow_video ?? false,
+    social: existing?.allow_social_media ?? false,
+    signedName: existing?.signed_name ?? guardian?.full_name ?? "",
+  });
+  const [error, setError] = useState("");
+  return (
+    <ModalShell
+      title="Confirmar termo físico"
+      subtitle={`AUTORIZAÇÃO DO CULTO DE ${new Date(`${today}T12:00:00`).toLocaleDateString("pt-BR")}`}
+      onClose={onClose}
+    >
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (form.signedName.trim().length < 3)
+            return setError("Informe o nome completo de quem assinou o termo.");
+          if (
+            form.decision === "authorized" &&
+            !form.photo &&
+            !form.video &&
+            !form.social
+          )
+            return setError("Marque pelo menos uma autorização do termo.");
+          onSave({
+            id: existing?.id ?? newId(),
+            church_id: child?.church_id ?? "",
+            child_id: childId,
+            authorization_date: today,
+            decision: form.decision,
+            allow_photo: form.decision === "authorized" && form.photo,
+            allow_video: form.decision === "authorized" && form.video,
+            allow_social_media: form.decision === "authorized" && form.social,
+            signed_name: form.signedName.trim(),
+            confirmed_at: new Date().toISOString(),
+          });
+        }}
+      >
+        <div className="form-scroll">
+          <div className="authorization-summary">
+            <span className="profile-avatar small-profile">
+              {initials(child?.full_name ?? "C")}
+            </span>
+            <span>
+              <strong>{child?.full_name}</strong>
+              <small>Registre exatamente o que foi marcado no papel.</small>
+            </span>
+          </div>
+          <div className="decision-switch">
+            <button
+              type="button"
+              className={form.decision === "authorized" ? "allow active" : ""}
+              onClick={() => setForm({ ...form, decision: "authorized" })}
+            >
+              <Check /> Autorizado
+            </button>
+            <button
+              type="button"
+              className={form.decision === "denied" ? "deny active" : ""}
+              onClick={() =>
+                setForm({
+                  ...form,
+                  decision: "denied",
+                  photo: false,
+                  video: false,
+                  social: false,
+                })
+              }
+            >
+              <X /> Não autorizado
+            </button>
+          </div>
+          {form.decision === "authorized" && (
+            <div className="scope-choice">
+              <CheckCard
+                label="Fotografia"
+                checked={form.photo}
+                onChange={() => setForm({ ...form, photo: !form.photo })}
+              />
+              <CheckCard
+                label="Gravação em vídeo"
+                checked={form.video}
+                onChange={() => setForm({ ...form, video: !form.video })}
+              />
+              <CheckCard
+                label="Publicação nas redes sociais"
+                checked={form.social}
+                onChange={() => setForm({ ...form, social: !form.social })}
+              />
+            </div>
+          )}
+          <Field
+            label="Nome completo de quem assinou"
+            required
+            wide
             value={form.signedName}
             onChange={(value) => setForm({ ...form, signedName: value })}
           />

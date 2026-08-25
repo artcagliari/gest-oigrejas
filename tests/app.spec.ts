@@ -254,6 +254,15 @@ test("registra autorização infantil específica do culto", async ({ page }) =>
       name: "Gerar autorização do culto de hoje",
     }),
   ).toBeVisible();
+  await page.getByRole("button", { name: "Confirmar termo assinado" }).click();
+  await page.getByRole("checkbox", { name: "Fotografia", exact: true }).check();
+  await page.getByRole("button", { name: "Salvar" }).click();
+  await expect(
+    page.getByText("Confirmação do termo físico registrada para hoje."),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Termo de hoje confirmado" }),
+  ).toBeVisible();
   await page
     .getByRole("button", { name: "Autorizações por culto", exact: true })
     .click();

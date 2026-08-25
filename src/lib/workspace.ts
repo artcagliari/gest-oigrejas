@@ -144,6 +144,19 @@ export type ChildAuthorization = {
   generated_at: string;
 };
 
+export type DailyChildAuthorization = {
+  id: string;
+  church_id: string;
+  child_id: string;
+  authorization_date: string;
+  decision: "authorized" | "denied";
+  allow_photo: boolean;
+  allow_video: boolean;
+  allow_social_media: boolean;
+  signed_name: string;
+  confirmed_at: string;
+};
+
 export type ChildCheckin = {
   id: string;
   church_id: string;
@@ -299,6 +312,7 @@ export type WorkspaceData = {
   children: ChildProfile[];
   guardians: ChildGuardian[];
   childAuthorizations: ChildAuthorization[];
+  dailyChildAuthorizations: DailyChildAuthorization[];
   childCheckins: ChildCheckin[];
   departments: Department[];
   departmentRoles: DepartmentRole[];
@@ -561,6 +575,7 @@ const demoData: WorkspaceData = {
       generated_at: "2026-08-24T08:00:00-03:00",
     },
   ],
+  dailyChildAuthorizations: [],
   childCheckins: [],
   departments: [
     {
@@ -661,6 +676,9 @@ function localRead(): WorkspaceData {
       childAuthorizations:
         parsed.childAuthorizations ??
         structuredClone(demoData.childAuthorizations),
+      dailyChildAuthorizations:
+        parsed.dailyChildAuthorizations ??
+        structuredClone(demoData.dailyChildAuthorizations),
       childCheckins:
         parsed.childCheckins ?? structuredClone(demoData.childCheckins),
       departments: parsed.departments ?? structuredClone(demoData.departments),
@@ -777,6 +795,7 @@ export async function loadWorkspace(
       children: [],
       guardians: [],
       childAuthorizations: [],
+      dailyChildAuthorizations: [],
       childCheckins: [],
       departments: [],
       departmentRoles: [],
@@ -796,6 +815,7 @@ export async function loadWorkspace(
     childrenRes,
     guardiansRes,
     authorizationsRes,
+    dailyAuthorizationsRes,
     checkinsRes,
     departmentsRes,
     departmentRolesRes,
@@ -853,6 +873,11 @@ export async function loadWorkspace(
       .eq("church_id", churchId ?? "")
       .order("generated_at", { ascending: false }),
     supabase
+      .from("child_daily_authorizations")
+      .select("*")
+      .eq("church_id", churchId ?? "")
+      .order("authorization_date", { ascending: false }),
+    supabase
       .from("child_checkins")
       .select("*")
       .eq("church_id", churchId ?? "")
@@ -898,6 +923,7 @@ export async function loadWorkspace(
     childrenRes.error ||
     guardiansRes.error ||
     authorizationsRes.error ||
+    dailyAuthorizationsRes.error ||
     checkinsRes.error ||
     departmentsRes.error ||
     departmentRolesRes.error ||
@@ -961,6 +987,8 @@ export async function loadWorkspace(
     })) as ChildProfile[],
     guardians: (guardiansRes.data ?? []) as ChildGuardian[],
     childAuthorizations: (authorizationsRes.data ?? []) as ChildAuthorization[],
+    dailyChildAuthorizations: (dailyAuthorizationsRes.data ??
+      []) as DailyChildAuthorization[],
     childCheckins: (checkinsRes.data ?? []) as ChildCheckin[],
     departments: (departmentsRes.data ?? []) as Department[],
     departmentRoles: (departmentRolesRes.data ?? []) as DepartmentRole[],
@@ -1506,6 +1534,52 @@ export async function saveChildAuthorization(
   return loadWorkspace(updated.church_id, false);
 }
 
+export async function saveDailyChildAuthorization(
+  data: WorkspaceData,
+  authorization: DailyChildAuthorization,
+): Promise<WorkspaceData> {
+  if (authorization.signed_name.trim().length < 3)
+    throw new Error("Informe o nome completo do responsável que assinou.");
+  if (
+    authorization.decision === "authorized" &&
+    !authorization.allow_photo &&
+    !authorization.allow_video &&
+    !authorization.allow_social_media
+  )
+    throw new Error("Selecione ao menos uma finalidade autorizada.");
+  const normalized = {
+    ...authorization,
+    signed_name: authorization.signed_name.trim(),
+    allow_photo:
+      authorization.decision === "authorized" && authorization.allow_photo,
+    allow_video:
+      authorization.decision === "authorized" && authorization.allow_video,
+    allow_social_media:
+      authorization.decision === "authorized" &&
+      authorization.allow_social_media,
+  };
+  if (isDemoMode || !supabase) {
+    const next = {
+      ...data,
+      dailyChildAuthorizations: [
+        ...data.dailyChildAuthorizations.filter(
+          (item) =>
+            item.child_id !== normalized.child_id ||
+            item.authorization_date !== normalized.authorization_date,
+        ),
+        normalized,
+      ],
+    };
+    localWrite(next);
+    return next;
+  }
+  const { error } = await supabase
+    .from("child_daily_authorizations")
+    .upsert(normalized, { onConflict: "child_id,authorization_date" });
+  if (error) throw error;
+  return loadWorkspace(normalized.church_id, false);
+}
+
 export async function checkInChild(
   data: WorkspaceData,
   checkin: ChildCheckin,
@@ -2011,6 +2085,7 @@ export const emptyWorkspace: WorkspaceData = {
   children: [],
   guardians: [],
   childAuthorizations: [],
+  dailyChildAuthorizations: [],
   childCheckins: [],
   departments: [],
   departmentRoles: [],
