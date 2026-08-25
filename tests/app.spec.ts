@@ -243,9 +243,7 @@ test("Gestor Geral atribui cargo e liderança no departamento", async ({
   await expect(louvor.getByText(/Músico\(a\).*Líder gestor/)).toBeVisible();
 });
 
-test("registra autorização infantil específica e check-in do culto", async ({
-  page,
-}) => {
+test("registra autorização infantil específica do culto", async ({ page }) => {
   await page.getByRole("button", { name: "Entrar no sistema" }).click();
   await page.getByRole("button", { name: "Kids", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Kids" })).toBeVisible();
@@ -271,14 +269,6 @@ test("registra autorização infantil específica e check-in do culto", async ({
   await expect(
     page.getByText("Decisão do responsável registrada."),
   ).toBeVisible();
-  await page.getByRole("button", { name: "Check-in e saída" }).click();
-  await page.getByRole("button", { name: "Fazer check-in" }).click();
-  await expect(
-    page.getByRole("heading", { name: "Check-in da criança" }),
-  ).toBeVisible();
-  await page.getByRole("button", { name: "Salvar" }).click();
-  await expect(page.getByText("Entrada da criança registrada.")).toBeVisible();
-  await expect(page.getByText(/Presente desde/)).toBeVisible();
 });
 
 test("responsável responde autorização pelo link público", async ({ page }) => {

@@ -48,7 +48,6 @@ import {
   Church,
   ChurchEvent,
   ChildAuthorization,
-  ChildCheckin,
   ChildProfile,
   Department,
   DepartmentAssignment,
@@ -61,8 +60,6 @@ import {
   GroupMembershipHistory,
   generateKidsAuthorizations,
   getOrCreateChurchRegistrationLink,
-  checkInChild,
-  checkOutChild,
   deleteDepartment,
   loadPublicChildAuthorization,
   loadPublicChurchRegistration,
@@ -119,7 +116,6 @@ type Modal =
   | { type: "group"; group?: TeachingGroup }
   | { type: "child" }
   | { type: "child-authorization"; authorization: ChildAuthorization }
-  | { type: "child-checkin"; eventId: string; childId: string }
   | { type: "department"; department?: Department }
   | { type: "department-delete"; department: Department }
   | { type: "teaching-meeting"; group: TeachingGroup }
@@ -418,19 +414,10 @@ function AuthenticatedApp() {
               onAuthorization={(authorization) =>
                 setModal({ type: "child-authorization", authorization })
               }
-              onCheckin={(eventId, childId) =>
-                setModal({ type: "child-checkin", eventId, childId })
-              }
               onGenerate={(eventId) =>
                 persist(
                   () => generateKidsAuthorizations(workspace, eventId),
                   "Autorizações pendentes geradas para este culto.",
-                )
-              }
-              onCheckout={(checkinId, pickupBy) =>
-                persist(
-                  () => checkOutChild(workspace, checkinId, pickupBy),
-                  "Saída registrada com segurança.",
                 )
               }
               notify={showToast}
@@ -553,21 +540,6 @@ function AuthenticatedApp() {
             persist(
               () => saveChildAuthorization(workspace, authorization),
               "Decisão do responsável registrada.",
-            )
-          }
-        />
-      )}
-      {modal?.type === "child-checkin" && (
-        <ChildCheckinForm
-          churchId={churchId}
-          eventId={modal.eventId}
-          childId={modal.childId}
-          data={workspace}
-          onClose={() => setModal(null)}
-          onSave={(checkin) =>
-            persist(
-              () => checkInChild(workspace, checkin),
-              "Entrada da criança registrada.",
             )
           }
         />
@@ -2364,31 +2336,22 @@ function Kids({
   data,
   onAddChild,
   onAuthorization,
-  onCheckin,
   onGenerate,
-  onCheckout,
   notify,
 }: {
   data: WorkspaceData;
   onAddChild: () => void;
   onAuthorization: (authorization: ChildAuthorization) => void;
-  onCheckin: (eventId: string, childId: string) => void;
   onGenerate: (eventId: string) => void;
-  onCheckout: (checkinId: string, pickupBy: string) => void;
   notify: (message: string) => void;
 }) {
   const services = data.events.filter(
     (event) => event.event_type === "worship",
   );
   const [serviceId, setServiceId] = useState(services[0]?.id ?? "");
-  const [tab, setTab] = useState<"children" | "authorizations" | "checkin">(
-    "authorizations",
-  );
+  const [tab, setTab] = useState<"children" | "authorizations">("children");
   const selectedService = services.find((event) => event.id === serviceId);
   const authorizations = data.childAuthorizations.filter(
-    (item) => item.event_id === serviceId,
-  );
-  const checkins = data.childCheckins.filter(
     (item) => item.event_id === serviceId,
   );
   const childPerson = (childId: string) =>
@@ -2413,7 +2376,7 @@ function Kids({
       <PageHead
         eyebrow="PROTEÇÃO E ACOLHIMENTO"
         title="Kids"
-        text="Crianças, responsáveis, autorizações por culto e check-in seguro em um único fluxo."
+        text="Crianças, responsáveis e autorizações de uso de imagem em um único fluxo."
         action="Nova criança"
         onAction={onAddChild}
       />
@@ -2423,7 +2386,7 @@ function Kids({
             <QrCode />
           </span>
           <label>
-            Culto em operação
+            Culto para autorização digital
             <select
               value={serviceId}
               onChange={(event) => setServiceId(event.target.value)}
@@ -2444,11 +2407,7 @@ function Kids({
             onClick={() => onGenerate(serviceId)}
           >
             <FileSignature />
-            Gerar pendentes
-          </button>
-          <button className="primary" onClick={() => setTab("checkin")}>
-            <ClipboardCheck />
-            Abrir check-in
+            Gerar autorizações digitais
           </button>
         </div>
       </section>
@@ -2484,12 +2443,6 @@ function Kids({
           detail="neste culto"
           positive
         />
-        <Metric
-          icon={ClipboardCheck}
-          label="Presentes"
-          value={String(checkins.filter((item) => !item.checkout_at).length)}
-          detail="check-ins ativos"
-        />
       </div>
       <div className="detail-tabs kids-tabs">
         <button
@@ -2503,12 +2456,6 @@ function Kids({
           onClick={() => setTab("authorizations")}
         >
           Autorizações por culto
-        </button>
-        <button
-          className={tab === "checkin" ? "active" : ""}
-          onClick={() => setTab("checkin")}
-        >
-          Check-in e saída
         </button>
       </div>
       {tab === "children" && (
@@ -2648,124 +2595,10 @@ function Kids({
           ))}
           {serviceId && !authorizations.length && (
             <p className="inline-empty">
-              Clique em “Gerar pendentes” para criar uma autorização individual
-              para cada criança.
+              Clique em “Gerar autorizações digitais” para criar uma autorização
+              individual para cada criança.
             </p>
           )}
-        </section>
-      )}
-      {tab === "checkin" && (
-        <section className="checkin-board">
-          {data.children.map((child) => {
-            const person = childPerson(child.person_id),
-              authorization = authorizations.find(
-                (item) => item.child_id === child.person_id,
-              ),
-              checkin = checkins.find(
-                (item) => item.child_id === child.person_id,
-              );
-            return (
-              <article
-                className={`card checkin-card ${checkin && !checkin.checkout_at ? "checked-in" : ""}`}
-                key={child.person_id}
-              >
-                <div>
-                  <span className="avatar coral">
-                    {initials(person?.full_name ?? "C")}
-                  </span>
-                  <span>
-                    <strong>{person?.full_name}</strong>
-                    <small>{guardianName(child.person_id)}</small>
-                  </span>
-                </div>
-                <div className="checkin-flags">
-                  <b
-                    className={`authorization-status ${authorization?.decision ?? "pending"}`}
-                  >
-                    {authorizationDecision(
-                      authorization?.decision ?? "pending",
-                    )}
-                  </b>
-                  {checkin && !checkin.checkout_at && (
-                    <b className="status">
-                      Presente desde{" "}
-                      {new Date(checkin.checkin_at).toLocaleTimeString(
-                        "pt-BR",
-                        { hour: "2-digit", minute: "2-digit" },
-                      )}
-                    </b>
-                  )}
-                </div>
-                <div className="kids-image-rules">
-                  <span
-                    className={
-                      authorization?.allow_photo ? "allowed" : "blocked"
-                    }
-                  >
-                    <Camera /> Foto{" "}
-                    {authorization?.allow_photo ? "permitida" : "não permitida"}
-                  </span>
-                  <span
-                    className={
-                      authorization?.allow_video ? "allowed" : "blocked"
-                    }
-                  >
-                    <Video /> Vídeo{" "}
-                    {authorization?.allow_video ? "permitido" : "não permitido"}
-                  </span>
-                  <span
-                    className={
-                      authorization?.allow_social_media ? "allowed" : "blocked"
-                    }
-                  >
-                    <Share2 /> Redes{" "}
-                    {authorization?.allow_social_media
-                      ? "permitidas"
-                      : "não permitidas"}
-                  </span>
-                </div>
-                {authorization && (
-                  <button
-                    className="secondary"
-                    onClick={() => printChildAuthorization(authorization, data)}
-                  >
-                    <FileSignature />
-                    {authorization.decision === "pending"
-                      ? "Gerar termo para assinatura"
-                      : "Abrir comprovante de consentimento"}
-                  </button>
-                )}
-                {!checkin ? (
-                  <button
-                    className="primary"
-                    disabled={!serviceId}
-                    onClick={() => onCheckin(serviceId, child.person_id)}
-                  >
-                    <ClipboardCheck />
-                    Fazer check-in
-                  </button>
-                ) : !checkin.checkout_at ? (
-                  <button
-                    className="secondary"
-                    onClick={() => {
-                      const pickup = window.prompt(
-                        "Nome completo de quem está retirando a criança:",
-                      );
-                      if (pickup) onCheckout(checkin.id, pickup);
-                    }}
-                  >
-                    <LogOut />
-                    Registrar saída
-                  </button>
-                ) : (
-                  <span className="checkout-done">
-                    <Check />
-                    Retirada por {checkin.pickup_by}
-                  </span>
-                )}
-              </article>
-            );
-          })}
         </section>
       )}
     </>
@@ -3236,124 +3069,6 @@ function ChildAuthorizationForm({
               {error}
             </p>
           )}
-        </div>
-        <ModalActions onClose={onClose} />
-      </form>
-    </ModalShell>
-  );
-}
-
-function ChildCheckinForm({
-  churchId,
-  eventId,
-  childId,
-  data,
-  onClose,
-  onSave,
-}: {
-  churchId: string;
-  eventId: string;
-  childId: string;
-  data: WorkspaceData;
-  onClose: () => void;
-  onSave: (checkin: ChildCheckin) => void;
-}) {
-  const child = data.people.find((person) => person.id === childId),
-    guardianLinks = data.guardians.filter(
-      (item) => item.child_id === childId && item.can_pickup,
-    ),
-    authorization = data.childAuthorizations.find(
-      (item) => item.event_id === eventId && item.child_id === childId,
-    ),
-    [form, setForm] = useState({
-      guardianId: guardianLinks[0]?.guardian_person_id ?? "",
-      notes: "",
-      pickupCode: String(Math.floor(1000 + Math.random() * 9000)),
-    });
-  return (
-    <ModalShell
-      title="Check-in da criança"
-      subtitle="KIDS • ENTRADA SEGURA"
-      onClose={onClose}
-    >
-      <form
-        onSubmit={(event) => {
-          event.preventDefault();
-          onSave({
-            id: newId(),
-            church_id: churchId,
-            event_id: eventId,
-            child_id: childId,
-            guardian_id: form.guardianId || undefined,
-            authorization_id: authorization?.id,
-            checkin_at: new Date().toISOString(),
-            pickup_code: form.pickupCode,
-            notes: form.notes,
-          });
-        }}
-      >
-        <div className="form-scroll">
-          <div className="authorization-summary">
-            <span className="profile-avatar small-profile">
-              {initials(child?.full_name ?? "C")}
-            </span>
-            <span>
-              <strong>{child?.full_name}</strong>
-              <small>
-                Autorização de imagem:{" "}
-                {authorizationDecision(authorization?.decision ?? "pending")}
-              </small>
-            </span>
-          </div>
-          {authorization?.decision !== "authorized" && (
-            <div className="kids-warning coral-warning">
-              <Camera />
-              <span>
-                <strong>Não fotografar nem filmar</strong>A participação e o
-                check-in continuam normalmente.
-              </span>
-            </div>
-          )}
-          {authorization && (
-            <button
-              type="button"
-              className="secondary wide consent-document-button"
-              onClick={() => printChildAuthorization(authorization, data)}
-            >
-              <FileSignature />
-              {authorization.decision === "pending"
-                ? "Imprimir termo para o responsável"
-                : "Abrir comprovante de consentimento"}
-            </button>
-          )}
-          <div className="form-grid">
-            <SelectField
-              label="Responsável pela entrada"
-              value={form.guardianId}
-              raw
-              required
-              options={guardianLinks.map(
-                (link) =>
-                  `${link.guardian_person_id}|${data.people.find((person) => person.id === link.guardian_person_id)?.full_name ?? "Responsável"}`,
-              )}
-              onChange={(value) => setForm({ ...form, guardianId: value })}
-            />
-            <Field
-              label="Código de retirada"
-              value={form.pickupCode}
-              onChange={(value) => setForm({ ...form, pickupCode: value })}
-            />
-            <label className="full">
-              Observações do check-in
-              <textarea
-                rows={3}
-                value={form.notes}
-                onChange={(event) =>
-                  setForm({ ...form, notes: event.target.value })
-                }
-              />
-            </label>
-          </div>
         </div>
         <ModalActions onClose={onClose} />
       </form>
