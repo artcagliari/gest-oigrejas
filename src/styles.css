@@ -1844,6 +1844,41 @@ nav {
   width: 16px;
   vertical-align: middle;
 }
+.kids-image-rules {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+.kids-image-rules span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  font-size: 9px;
+  font-weight: 750;
+}
+.kids-image-rules svg {
+  width: 13px;
+  height: 13px;
+}
+.kids-image-rules .allowed {
+  color: #17694f;
+  background: #dff4ea;
+}
+.kids-image-rules .blocked {
+  color: #9b413b;
+  background: #fbe4e1;
+}
+.consent-document-button {
+  margin-bottom: 14px;
+}
+.field-error {
+  margin: 10px 0 0;
+  color: #a63d35;
+  font-size: 11px;
+  font-weight: 700;
+}
 .department-card {
   overflow: hidden;
 }
@@ -2130,6 +2165,50 @@ button.danger svg {
 .public-legal-note {
   color: var(--muted);
   font-size: 10px;
+}
+.public-consent-receipt {
+  margin: 20px 0;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #f7faf8;
+}
+.public-consent-receipt h2 {
+  margin: 8px 0;
+}
+.public-consent-receipt ul {
+  padding-left: 20px;
+}
+.public-consent-receipt small {
+  overflow-wrap: anywhere;
+  color: var(--muted);
+  font-family: monospace;
+}
+.decision-receipt {
+  display: inline-flex;
+  padding: 7px 11px;
+  color: #17694f;
+  background: #dff4ea;
+  border-radius: 999px;
+  font-weight: 800;
+}
+@media print {
+  .public-consent-page {
+    display: block;
+    padding: 0;
+    background: #fff;
+  }
+  .public-consent-card {
+    width: 100%;
+    padding: 0;
+    border: 0;
+    box-shadow: none;
+  }
+  .public-consent-card button,
+  .public-consent-card .brand,
+  .public-consent-icon {
+    display: none;
+  }
 }
 .registration-link-card {
   display: flex;

@@ -1427,7 +1427,7 @@ export async function generateKidsAuthorizations(
           allow_photo: false,
           allow_video: false,
           allow_social_media: false,
-          consent_version: "kids-image-v1",
+          consent_version: "kids-image-v2",
           consent_text_snapshot: `Autorização específica para captação e uso de imagem da criança durante o evento “${event.title}”, em ${new Date(event.starts_at).toLocaleString("pt-BR")}. A recusa não impede a participação da criança.`,
           token: newId(),
           generated_at: new Date().toISOString(),
@@ -1466,6 +1466,15 @@ export async function saveChildAuthorization(
   data: WorkspaceData,
   authorization: ChildAuthorization,
 ): Promise<WorkspaceData> {
+  if ((authorization.signed_name?.trim().length ?? 0) < 3)
+    throw new Error("Informe o nome completo do responsável legal.");
+  if (
+    authorization.decision === "authorized" &&
+    !authorization.allow_photo &&
+    !authorization.allow_video &&
+    !authorization.allow_social_media
+  )
+    throw new Error("Selecione ao menos uma finalidade autorizada.");
   const updated = {
     ...authorization,
     signed_at: authorization.signed_at ?? new Date().toISOString(),
@@ -1501,6 +1510,20 @@ export async function checkInChild(
   data: WorkspaceData,
   checkin: ChildCheckin,
 ): Promise<WorkspaceData> {
+  if (!checkin.guardian_id)
+    throw new Error("Selecione o responsável que está realizando a entrada.");
+  if (!/^\d{4,8}$/.test(checkin.pickup_code ?? ""))
+    throw new Error("Informe um código de retirada com 4 a 8 números.");
+  const guardianCanPickup = data.guardians.some(
+    (guardian) =>
+      guardian.child_id === checkin.child_id &&
+      guardian.guardian_person_id === checkin.guardian_id &&
+      guardian.can_pickup,
+  );
+  if (!guardianCanPickup)
+    throw new Error(
+      "A pessoa selecionada não está autorizada para esta criança.",
+    );
   if (isDemoMode || !supabase) {
     const next = {
       ...data,

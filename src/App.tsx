@@ -2690,6 +2690,45 @@ function Kids({
                     </b>
                   )}
                 </div>
+                <div className="kids-image-rules">
+                  <span
+                    className={
+                      authorization?.allow_photo ? "allowed" : "blocked"
+                    }
+                  >
+                    <Camera /> Foto{" "}
+                    {authorization?.allow_photo ? "permitida" : "não permitida"}
+                  </span>
+                  <span
+                    className={
+                      authorization?.allow_video ? "allowed" : "blocked"
+                    }
+                  >
+                    <Video /> Vídeo{" "}
+                    {authorization?.allow_video ? "permitido" : "não permitido"}
+                  </span>
+                  <span
+                    className={
+                      authorization?.allow_social_media ? "allowed" : "blocked"
+                    }
+                  >
+                    <Share2 /> Redes{" "}
+                    {authorization?.allow_social_media
+                      ? "permitidas"
+                      : "não permitidas"}
+                  </span>
+                </div>
+                {authorization && (
+                  <button
+                    className="secondary"
+                    onClick={() => printChildAuthorization(authorization, data)}
+                  >
+                    <FileSignature />
+                    {authorization.decision === "pending"
+                      ? "Gerar termo para assinatura"
+                      : "Abrir comprovante de consentimento"}
+                  </button>
+                )}
                 {!checkin ? (
                   <button
                     className="primary"
@@ -2769,9 +2808,17 @@ function printChildAuthorization(
           "'": "&#039;",
         })[char] ?? char,
     );
-  popup.document.write(
-    `<!doctype html><html lang="pt-BR"><head><title>Autorização de imagem</title><style>body{font:16px Arial;color:#172b27;padding:54px;line-height:1.55}h1{font-size:25px}h2{font-size:17px;margin-top:32px}.box{border:1px solid #cad7d2;border-radius:12px;padding:18px;margin:20px 0}.decision{font-weight:bold;font-size:18px}.signature{margin-top:70px;border-top:1px solid #172b27;padding-top:8px;width:70%}@media print{button{display:none}}</style></head><body><h1>Autorização específica de uso de imagem — criança</h1><p><strong>${safe(church?.name)}</strong></p><div class="box"><p><strong>Criança:</strong> ${safe(child?.full_name)}</p><p><strong>Responsável:</strong> ${safe(authorization.signed_name || guardian?.full_name)}</p><p><strong>Culto:</strong> ${safe(event?.title)} — ${safe(event ? dateTime(event.starts_at) : "")}</p></div><p>${safe(authorization.consent_text_snapshot)}</p><h2>Decisão registrada</h2><p class="decision">${authorizationDecision(authorization.decision)}</p><p>Fotografia: ${authorization.allow_photo ? "SIM" : "NÃO"}<br>Vídeo: ${authorization.allow_video ? "SIM" : "NÃO"}<br>Publicação nas redes sociais: ${authorization.allow_social_media ? "SIM" : "NÃO"}</p><p class="signature">${safe(authorization.signed_name || "Assinatura do responsável")}</p><p>Registrado em: ${authorization.signed_at ? safe(dateTime(authorization.signed_at)) : "Pendente de manifestação"}</p><button onclick="window.print()">Imprimir</button></body></html>`,
-  );
+  const pending = authorization.decision === "pending";
+  popup.document
+    .write(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Termo de consentimento Kids</title><style>
+    @page{size:A4;margin:18mm}*{box-sizing:border-box}body{font:14px Arial,sans-serif;color:#172b27;margin:0;line-height:1.5}header{border-bottom:3px solid #177356;padding-bottom:16px;margin-bottom:24px}h1{font-size:22px;margin:0 0 5px}h2{font-size:15px;margin:24px 0 10px}.muted{color:#5d6f69}.box{border:1px solid #cad7d2;border-radius:10px;padding:14px 18px;margin:14px 0}.box p{margin:6px 0}.decision{padding:12px 16px;border-radius:8px;background:${pending ? "#fff5df" : authorization.decision === "authorized" ? "#e5f5ed" : "#fbe7e4"};font-weight:bold}.scopes{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.scope{border:1px solid #cad7d2;border-radius:8px;padding:10px}.signature-grid{display:grid;grid-template-columns:1fr 1fr;gap:36px;margin-top:62px}.signature{border-top:1px solid #172b27;padding-top:7px}.code{margin-top:28px;padding-top:12px;border-top:1px solid #d9e2df;font:11px monospace;color:#5d6f69}button{margin-top:24px;padding:10px 18px}@media print{button{display:none}}
+  </style></head><body><header><h1>${pending ? "Termo para manifestação de consentimento" : "Comprovante de consentimento específico"}</h1><div class="muted">Uso de imagem de criança ou adolescente em culto</div></header>
+  <div class="box"><p><strong>Igreja:</strong> ${safe(church?.name)}</p><p><strong>Criança/adolescente:</strong> ${safe(child?.full_name)}</p><p><strong>Data de nascimento:</strong> ${safe(child?.birth_date ? new Date(`${child.birth_date}T12:00:00`).toLocaleDateString("pt-BR") : "Não informada")}</p><p><strong>Responsável legal:</strong> ${safe(authorization.signed_name || guardian?.full_name || "A preencher")}</p><p><strong>Culto:</strong> ${safe(event?.title)} — ${safe(event ? dateTime(event.starts_at) : "")}</p></div>
+  <h2>Finalidade e condições</h2><p>${safe(authorization.consent_text_snapshot)}</p><p class="muted">A decisão é exclusiva para o culto identificado acima. A participação da criança não depende da autorização de imagem. O responsável poderá solicitar a revogação conforme a legislação aplicável.</p>
+  <h2>Decisão e escopos</h2><div class="decision">${pending ? "☐ AUTORIZO   ☐ NÃO AUTORIZO" : authorizationDecision(authorization.decision).toUpperCase()}</div><div class="scopes"><div class="scope">${authorization.allow_photo ? "☑" : "☐"} Fotografia</div><div class="scope">${authorization.allow_video ? "☑" : "☐"} Gravação em vídeo</div><div class="scope">${authorization.allow_social_media ? "☑" : "☐"} Publicação nas redes sociais</div></div>
+  <div class="signature-grid"><div class="signature">${safe(authorization.signed_name || "Assinatura do responsável legal")}</div><div class="signature">Data e hora</div></div>
+  <div class="code">Documento: ${safe(authorization.id)}<br>Versão do consentimento: ${safe(authorization.consent_version)}<br>${authorization.signed_at ? `Registro eletrônico: ${safe(dateTime(authorization.signed_at))}` : "Documento ainda sem manifestação registrada no sistema."}</div>
+  <button onclick="window.print()">Imprimir / salvar em PDF</button></body></html>`);
   popup.document.close();
   popup.focus();
 }
@@ -2992,6 +3039,7 @@ function ChildAuthorizationForm({
       (person) => person.id === authorization.child_id,
     ),
     event = data.events.find((item) => item.id === authorization.event_id),
+    [error, setError] = useState(""),
     [form, setForm] = useState({
       decision:
         authorization.decision === "pending"
@@ -3011,6 +3059,20 @@ function ChildAuthorizationForm({
       <form
         onSubmit={(submitEvent) => {
           submitEvent.preventDefault();
+          if (form.signedName.trim().length < 3) {
+            setError("Informe o nome completo do responsável legal.");
+            return;
+          }
+          if (
+            form.decision === "authorized" &&
+            !form.photo &&
+            !form.video &&
+            !form.social
+          ) {
+            setError("Selecione ao menos uma finalidade autorizada.");
+            return;
+          }
+          setError("");
           onSave({
             ...authorization,
             decision: form.decision,
@@ -3087,6 +3149,11 @@ function ChildAuthorizationForm({
             value={form.signedName}
             onChange={(value) => setForm({ ...form, signedName: value })}
           />
+          {error && (
+            <p className="field-error" role="alert">
+              {error}
+            </p>
+          )}
         </div>
         <ModalActions onClose={onClose} />
       </form>
@@ -3164,6 +3231,18 @@ function ChildCheckinForm({
                 check-in continuam normalmente.
               </span>
             </div>
+          )}
+          {authorization && (
+            <button
+              type="button"
+              className="secondary wide consent-document-button"
+              onClick={() => printChildAuthorization(authorization, data)}
+            >
+              <FileSignature />
+              {authorization.decision === "pending"
+                ? "Imprimir termo para o responsável"
+                : "Abrir comprovante de consentimento"}
+            </button>
           )}
           <div className="form-grid">
             <SelectField
@@ -3588,6 +3667,15 @@ function PublicAuthorizationPage({ token }: { token: string }) {
     loadPublicChildAuthorization(token)
       .then((data) => {
         setAuthorization(data);
+        if (data) {
+          setForm({
+            decision: data.decision === "denied" ? "denied" : "authorized",
+            photo: data.allow_photo,
+            video: data.allow_video,
+            social: data.allow_social_media,
+            signedName: data.signed_name ?? "",
+          });
+        }
         if (!data) setError("Autorização não encontrada ou link inválido.");
       })
       .catch((reason) =>
@@ -3599,9 +3687,36 @@ function PublicAuthorizationPage({ token }: { token: string }) {
   }, [token]);
   async function submit(event: FormEvent) {
     event.preventDefault();
+    setError("");
+    if (form.signedName.trim().length < 3) {
+      setError("Informe o nome completo do responsável legal.");
+      return;
+    }
+    if (
+      form.decision === "authorized" &&
+      !form.photo &&
+      !form.video &&
+      !form.social
+    ) {
+      setError("Selecione ao menos uma finalidade que deseja autorizar.");
+      return;
+    }
     setLoading(true);
     try {
       await respondPublicChildAuthorization(token, form);
+      setAuthorization((current) =>
+        current
+          ? {
+              ...current,
+              decision: form.decision,
+              allow_photo: form.decision === "authorized" && form.photo,
+              allow_video: form.decision === "authorized" && form.video,
+              allow_social_media: form.decision === "authorized" && form.social,
+              signed_name: form.signedName.trim(),
+              signed_at: new Date().toISOString(),
+            }
+          : current,
+      );
       setDone(true);
     } catch (reason) {
       setError(friendlyErrorMessage(reason, "Não foi possível registrar."));
@@ -3629,6 +3744,40 @@ function PublicAuthorizationPage({ token }: { token: string }) {
               Obrigado. A equipe Kids já recebeu a sua manifestação para este
               culto.
             </p>
+            {authorization && (
+              <div className="public-consent-receipt">
+                <span className="eyebrow">COMPROVANTE DE CONSENTIMENTO</span>
+                <h2>{authorization.child_name}</h2>
+                <p>
+                  <strong>{authorization.event_title}</strong>
+                  <br />
+                  {dateTime(authorization.event_starts_at)} •{" "}
+                  {authorization.church_name}
+                </p>
+                <div className="decision-receipt">
+                  {authorizationDecision(authorization.decision)}
+                </div>
+                <ul>
+                  <li>
+                    Fotografia: {authorization.allow_photo ? "Sim" : "Não"}
+                  </li>
+                  <li>Vídeo: {authorization.allow_video ? "Sim" : "Não"}</li>
+                  <li>
+                    Redes sociais:{" "}
+                    {authorization.allow_social_media ? "Sim" : "Não"}
+                  </li>
+                </ul>
+                <p>
+                  Responsável: <strong>{authorization.signed_name}</strong>
+                  <br />
+                  Registro: {dateTime(authorization.signed_at ?? "")}
+                </p>
+                <small>Documento: {authorization.authorization_id}</small>
+              </div>
+            )}
+            <button className="primary wide" onClick={() => window.print()}>
+              <Printer /> Imprimir comprovante
+            </button>
             <button className="secondary" onClick={() => window.close()}>
               Fechar
             </button>
