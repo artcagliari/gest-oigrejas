@@ -684,6 +684,18 @@ function localWrite(data: WorkspaceData) {
 export function newId() {
   return crypto.randomUUID();
 }
+function ageFromIsoDate(value: string) {
+  const birthDate = new Date(`${value}T12:00:00`);
+  const today = new Date();
+  let age = today.getFullYear() - birthDate.getFullYear();
+  if (
+    today.getMonth() < birthDate.getMonth() ||
+    (today.getMonth() === birthDate.getMonth() &&
+      today.getDate() < birthDate.getDate())
+  )
+    age -= 1;
+  return age;
+}
 
 export async function resolveWorkspace(
   userId: string,
@@ -1617,6 +1629,9 @@ export async function submitPublicChurchRegistration(
     });
     for (const child of input.children) {
       const childId = newId();
+      const childCategories = ["Pré-cadastro", "Criança"];
+      if (ageFromIsoDate(child.birth_date) >= 12)
+        childCategories.push("Adolescente");
       data.people.push({
         id: childId,
         church_id: "demo-church",
@@ -1624,7 +1639,7 @@ export async function submitPublicChurchRegistration(
         birth_date: child.birth_date,
         document_cpf: child.document_cpf.trim(),
         address: structuredClone(input.address),
-        categories: ["Pré-cadastro", "Criança"],
+        categories: childCategories,
         ministry_roles: [],
         group_ids: [],
         notes: "Cadastro criado junto com o responsável pelo link público.",

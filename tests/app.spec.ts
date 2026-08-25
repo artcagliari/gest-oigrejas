@@ -275,7 +275,7 @@ test("membro faz pré-cadastro pelo link e já fica vinculado à igreja", async 
   await page.getByLabel("CPF do filho 1").fill("123.456.789-01");
   await page.getByRole("button", { name: "Adicionar outro filho" }).click();
   await page.getByLabel("Nome completo do filho 2").fill("Helena Cadastro");
-  await page.getByLabel("Data de nascimento do filho 2").fill("22/09/2020");
+  await page.getByLabel("Data de nascimento do filho 2").fill("22/09/2012");
   await page.getByLabel("CPF do filho 2").fill("123.456.789-02");
   await page.getByLabel("Telefone WhatsApp").fill("11988887766");
   await page.getByLabel("E-mail").fill("rafael.cadastro@exemplo.org");
@@ -334,12 +334,17 @@ test("membro faz pré-cadastro pelo link e já fica vinculado à igreja", async 
   expect(savedPerson.consent.data_processing).toBe(true);
   expect(savedFamily.children).toHaveLength(2);
   expect(savedFamily.children[0].categories).toContain("Criança");
+  expect(
+    savedFamily.children.find(
+      (child: { full_name: string }) => child.full_name === "Helena Cadastro",
+    ).categories,
+  ).toEqual(expect.arrayContaining(["Criança", "Adolescente"]));
   expect(savedFamily.children[0].address).toEqual(savedPerson.address);
   expect(
     savedFamily.children.map(
       (child: { birth_date: string }) => child.birth_date,
     ),
-  ).toEqual(expect.arrayContaining(["2016-04-10", "2020-09-22"]));
+  ).toEqual(expect.arrayContaining(["2016-04-10", "2012-09-22"]));
   expect(savedFamily.profiles).toHaveLength(2);
   expect(savedFamily.guardians).toHaveLength(2);
   expect(
