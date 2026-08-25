@@ -2244,16 +2244,32 @@ button.danger svg {
   margin-top: 12px;
 }
 .children-name-list > div {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  align-items: end;
-  gap: 9px;
+  display: block;
 }
-.children-name-list > div > label {
+.family-child-card {
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--soft);
+}
+.family-child-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.family-child-heading strong {
+  color: var(--navy);
+}
+.family-child-card .form-grid {
   margin: 0;
 }
-.children-name-list .icon-only {
-  margin-bottom: 1px;
+.child-age {
+  display: block;
+  margin-top: 8px;
+  color: var(--muted);
+  font-weight: 700;
 }
 .cep-field > .cep-input-row {
   display: grid;

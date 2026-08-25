@@ -248,7 +248,11 @@ export type SelfRegistrationInput = {
   conversion_date?: string;
   baptism_date?: string;
   categories: string[];
-  children_names: string[];
+  children: {
+    full_name: string;
+    birth_date: string;
+    document_cpf: string;
+  }[];
   messaging_consent: boolean;
   data_processing_consent: boolean;
 };
@@ -1563,8 +1567,27 @@ export async function submitPublicChurchRegistration(
       throw new Error(
         "Já existe uma pessoa com este e-mail ou telefone nesta igreja.",
       );
+    const parentId = newId();
+    const normalizedCpfs = [
+      input.document_cpf,
+      ...input.children.map((child) => child.document_cpf),
+    ].map((cpf) => cpf?.replace(/\D/g, ""));
+    if (new Set(normalizedCpfs).size !== normalizedCpfs.length)
+      throw new Error("O CPF do responsável e de cada criança deve ser único.");
+    if (
+      input.children.some((child) =>
+        data.people.some(
+          (person) =>
+            person.church_id === "demo-church" &&
+            person.document_cpf?.replace(/\D/g, "") ===
+              child.document_cpf.replace(/\D/g, ""),
+        ),
+      )
+    )
+      throw new Error("Já existe uma pessoa com o CPF de uma das crianças.");
+
     data.people.push({
-      id: newId(),
+      id: parentId,
       church_id: "demo-church",
       full_name: input.full_name.trim(),
       birth_date: input.birth_date || undefined,
@@ -1572,7 +1595,7 @@ export async function submitPublicChurchRegistration(
       education: input.education || undefined,
       marital_status: input.marital_status || undefined,
       spouse_name: input.spouse_name?.trim() || undefined,
-      children_names: input.children_names,
+      children_names: input.children.map((child) => child.full_name.trim()),
       document_cpf: input.document_cpf?.trim() || undefined,
       email: input.email?.trim().toLowerCase() || undefined,
       phone_primary: input.phone_primary?.trim() || undefined,
@@ -1592,6 +1615,50 @@ export async function submitPublicChurchRegistration(
         data_processing: input.data_processing_consent,
       },
     });
+    for (const child of input.children) {
+      const childId = newId();
+      data.people.push({
+        id: childId,
+        church_id: "demo-church",
+        full_name: child.full_name.trim(),
+        birth_date: child.birth_date,
+        document_cpf: child.document_cpf.trim(),
+        address: structuredClone(input.address),
+        categories: ["Pré-cadastro", "Criança"],
+        ministry_roles: [],
+        group_ids: [],
+        notes: "Cadastro criado junto com o responsável pelo link público.",
+        active: true,
+        consent: {
+          ...consentOff,
+          data_processing: input.data_processing_consent,
+        },
+      });
+      data.children.push({
+        person_id: childId,
+        church_id: "demo-church",
+        emergency_contact_name: input.full_name.trim(),
+        emergency_contact_phone: input.phone_primary?.trim(),
+        authorized_pickup_people: [
+          {
+            name: input.full_name.trim(),
+            document: input.document_cpf?.trim(),
+          },
+        ],
+        pickup_code_required: true,
+        active: true,
+      });
+      data.guardians.push({
+        id: newId(),
+        church_id: "demo-church",
+        child_id: childId,
+        guardian_person_id: parentId,
+        relationship: "Pai, mãe ou responsável",
+        legal_guardian: true,
+        primary_contact: true,
+        can_pickup: true,
+      });
+    }
     localWrite(data);
     return;
   }

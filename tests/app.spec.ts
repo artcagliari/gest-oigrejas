@@ -271,8 +271,12 @@ test("membro faz pré-cadastro pelo link e já fica vinculado à igreja", async 
   await page.getByRole("checkbox", { name: "Membro", exact: true }).check();
   await page.getByLabel("Possui filhos?").selectOption("Sim");
   await page.getByLabel("Nome completo do filho 1").fill("Gabriel Cadastro");
+  await page.getByLabel("Data de nascimento do filho 1").fill("10/04/2016");
+  await page.getByLabel("CPF do filho 1").fill("123.456.789-01");
   await page.getByRole("button", { name: "Adicionar outro filho" }).click();
   await page.getByLabel("Nome completo do filho 2").fill("Helena Cadastro");
+  await page.getByLabel("Data de nascimento do filho 2").fill("22/09/2020");
+  await page.getByLabel("CPF do filho 2").fill("123.456.789-02");
   await page.getByLabel("Telefone WhatsApp").fill("11988887766");
   await page.getByLabel("E-mail").fill("rafael.cadastro@exemplo.org");
   await page.getByLabel("CEP").fill("01000-000");
@@ -294,15 +298,32 @@ test("membro faz pré-cadastro pelo link e já fica vinculado à igreja", async 
     page.getByRole("heading", { name: "Seja bem-vindo(a)!" }),
   ).toBeVisible();
 
-  const savedPerson = await page.evaluate(() => {
+  const savedFamily = await page.evaluate(() => {
     const workspace = JSON.parse(
       localStorage.getItem("comunhao-workspace-v2") ?? "{}",
     );
-    return workspace.people?.find(
+    const parent = workspace.people?.find(
       (person: { full_name: string }) =>
         person.full_name === "Rafael do Cadastro",
     );
+    const children = workspace.people?.filter((person: { full_name: string }) =>
+      ["Gabriel Cadastro", "Helena Cadastro"].includes(person.full_name),
+    );
+    return {
+      parent,
+      children,
+      profiles: workspace.children?.filter((profile: { person_id: string }) =>
+        children.some(
+          (child: { id: string }) => child.id === profile.person_id,
+        ),
+      ),
+      guardians: workspace.guardians?.filter(
+        (guardian: { guardian_person_id: string }) =>
+          guardian.guardian_person_id === parent.id,
+      ),
+    };
   });
+  const savedPerson = savedFamily.parent;
   expect(savedPerson.church_id).toBe("demo-church");
   expect(savedPerson.categories).toContain("Pré-cadastro");
   expect(savedPerson.categories).toContain("Membro");
@@ -311,4 +332,19 @@ test("membro faz pré-cadastro pelo link e já fica vinculado à igreja", async 
     "Helena Cadastro",
   ]);
   expect(savedPerson.consent.data_processing).toBe(true);
+  expect(savedFamily.children).toHaveLength(2);
+  expect(savedFamily.children[0].categories).toContain("Criança");
+  expect(savedFamily.children[0].address).toEqual(savedPerson.address);
+  expect(
+    savedFamily.children.map(
+      (child: { birth_date: string }) => child.birth_date,
+    ),
+  ).toEqual(expect.arrayContaining(["2016-04-10", "2020-09-22"]));
+  expect(savedFamily.profiles).toHaveLength(2);
+  expect(savedFamily.guardians).toHaveLength(2);
+  expect(
+    savedFamily.guardians.every(
+      (guardian: { legal_guardian: boolean }) => guardian.legal_guardian,
+    ),
+  ).toBe(true);
 });

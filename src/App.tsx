@@ -3520,7 +3520,7 @@ function PublicChurchRegistrationPage({ token }: { token: string }) {
       conversion_date: "",
       baptism_date: "",
       categories: [],
-      children_names: [],
+      children: [],
       messaging_consent: false,
       data_processing_consent: false,
     });
@@ -3565,12 +3565,39 @@ function PublicChurchRegistrationPage({ token }: { token: string }) {
       setError("Informe se você possui filhos.");
       return;
     }
+    const normalizedParentCpf = form.document_cpf?.replace(/\D/g, "") ?? "";
+    if (normalizedParentCpf.length !== 11) {
+      setError("Informe um CPF válido para o responsável.");
+      return;
+    }
+    const preparedChildren = form.children.map((child) => ({
+      full_name: child.full_name.trim(),
+      birth_date: brazilianDateToIso(child.birth_date) ?? "",
+      document_cpf: child.document_cpf.replace(/\D/g, ""),
+      valid_child_age: childAge(child.birth_date) !== null,
+    }));
     if (
       hasChildren &&
-      (!form.children_names.length ||
-        form.children_names.some((name) => !name.trim()))
+      (!preparedChildren.length ||
+        preparedChildren.some(
+          (child) =>
+            child.full_name.length < 3 ||
+            !child.birth_date ||
+            child.document_cpf.length !== 11 ||
+            !child.valid_child_age,
+        ))
     ) {
-      setError("Preencha o nome de todos os filhos adicionados.");
+      setError(
+        "Preencha nome completo, data de nascimento de menor de 18 anos e CPF de cada criança.",
+      );
+      return;
+    }
+    const familyCpfs = [
+      normalizedParentCpf,
+      ...preparedChildren.map((child) => child.document_cpf),
+    ];
+    if (new Set(familyCpfs).size !== familyCpfs.length) {
+      setError("Cada pessoa da família precisa ter um CPF diferente.");
       return;
     }
     setLoading(true);
@@ -3578,6 +3605,11 @@ function PublicChurchRegistrationPage({ token }: { token: string }) {
       await submitPublicChurchRegistration(token, {
         ...form,
         birth_date: birthDate,
+        children: preparedChildren.map((child) => ({
+          full_name: child.full_name,
+          birth_date: child.birth_date,
+          document_cpf: child.document_cpf,
+        })),
       });
       setDone(true);
       window.scrollTo({ top: 0, behavior: "smooth" });
@@ -3725,7 +3757,7 @@ function PublicChurchRegistrationPage({ token }: { token: string }) {
                     required
                     value={form.document_cpf}
                     onChange={(document_cpf) =>
-                      setForm({ ...form, document_cpf })
+                      setForm({ ...form, document_cpf: maskCpf(document_cpf) })
                     }
                   />
                 </div>
@@ -3772,44 +3804,110 @@ function PublicChurchRegistrationPage({ token }: { token: string }) {
                     onChange={(value) => {
                       const next = value === "Sim";
                       setHasChildren(value ? next : undefined);
-                      setForm({ ...form, children_names: next ? [""] : [] });
+                      setForm({
+                        ...form,
+                        children: next
+                          ? [
+                              {
+                                full_name: "",
+                                birth_date: "",
+                                document_cpf: "",
+                              },
+                            ]
+                          : [],
+                      });
                     }}
                   />
                 </div>
                 {hasChildren && (
                   <div className="children-name-list">
-                    {form.children_names.map((name, index) => (
-                      <div key={index}>
-                        <Field
-                          label={`Nome completo do filho ${index + 1}`}
-                          required
-                          value={name}
-                          onChange={(value) =>
-                            setForm({
-                              ...form,
-                              children_names: form.children_names.map(
-                                (current, itemIndex) =>
-                                  itemIndex === index ? value : current,
-                              ),
-                            })
-                          }
-                        />
-                        {form.children_names.length > 1 && (
-                          <button
-                            type="button"
-                            className="icon-only danger"
-                            aria-label={`Remover filho ${index + 1}`}
-                            onClick={() =>
+                    {form.children.map((child, index) => (
+                      <div className="family-child-card" key={index}>
+                        <div className="family-child-heading">
+                          <strong>Criança {index + 1}</strong>
+                          {form.children.length > 1 && (
+                            <button
+                              type="button"
+                              className="icon-only danger"
+                              aria-label={`Remover filho ${index + 1}`}
+                              onClick={() =>
+                                setForm({
+                                  ...form,
+                                  children: form.children.filter(
+                                    (_, itemIndex) => itemIndex !== index,
+                                  ),
+                                })
+                              }
+                            >
+                              <Trash2 />
+                            </button>
+                          )}
+                        </div>
+                        <div className="form-grid public-form-grid">
+                          <Field
+                            label={`Nome completo do filho ${index + 1}`}
+                            required
+                            wide
+                            value={child.full_name}
+                            onChange={(full_name) =>
                               setForm({
                                 ...form,
-                                children_names: form.children_names.filter(
-                                  (_, itemIndex) => itemIndex !== index,
+                                children: form.children.map(
+                                  (current, itemIndex) =>
+                                    itemIndex === index
+                                      ? { ...current, full_name }
+                                      : current,
                                 ),
                               })
                             }
-                          >
-                            <Trash2 />
-                          </button>
+                          />
+                          <Field
+                            label={`Data de nascimento do filho ${index + 1}`}
+                            required
+                            placeholder="dd/mm/aaaa"
+                            inputMode="numeric"
+                            value={child.birth_date}
+                            onChange={(birth_date) =>
+                              setForm({
+                                ...form,
+                                children: form.children.map(
+                                  (current, itemIndex) =>
+                                    itemIndex === index
+                                      ? {
+                                          ...current,
+                                          birth_date:
+                                            maskBrazilianDate(birth_date),
+                                        }
+                                      : current,
+                                ),
+                              })
+                            }
+                          />
+                          <Field
+                            label={`CPF do filho ${index + 1}`}
+                            required
+                            inputMode="numeric"
+                            value={child.document_cpf}
+                            onChange={(document_cpf) =>
+                              setForm({
+                                ...form,
+                                children: form.children.map(
+                                  (current, itemIndex) =>
+                                    itemIndex === index
+                                      ? {
+                                          ...current,
+                                          document_cpf: maskCpf(document_cpf),
+                                        }
+                                      : current,
+                                ),
+                              })
+                            }
+                          />
+                        </div>
+                        {childAge(child.birth_date) !== null && (
+                          <small className="child-age">
+                            Idade atual: {childAge(child.birth_date)} anos
+                          </small>
                         )}
                       </div>
                     ))}
@@ -3819,7 +3917,14 @@ function PublicChurchRegistrationPage({ token }: { token: string }) {
                       onClick={() =>
                         setForm({
                           ...form,
-                          children_names: [...form.children_names, ""],
+                          children: [
+                            ...form.children,
+                            {
+                              full_name: "",
+                              birth_date: "",
+                              document_cpf: "",
+                            },
+                          ],
                         })
                       }
                     >
@@ -5767,6 +5872,14 @@ function maskBrazilianDate(value: string) {
   if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
   return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
 }
+function maskCpf(value: string) {
+  const digits = value.replace(/\D/g, "").slice(0, 11);
+  if (digits.length <= 3) return digits;
+  if (digits.length <= 6) return `${digits.slice(0, 3)}.${digits.slice(3)}`;
+  if (digits.length <= 9)
+    return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6)}`;
+  return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9)}`;
+}
 function maskCep(value: string) {
   const digits = value.replace(/\D/g, "").slice(0, 8);
   return digits.length > 5
@@ -5800,6 +5913,20 @@ function brazilianDateToIso(value?: string) {
   )
     return null;
   return `${year}-${month}-${day}`;
+}
+function childAge(value?: string) {
+  const isoDate = brazilianDateToIso(value);
+  if (!isoDate) return null;
+  const birthDate = new Date(`${isoDate}T12:00:00`);
+  const today = new Date();
+  let age = today.getFullYear() - birthDate.getFullYear();
+  if (
+    today.getMonth() < birthDate.getMonth() ||
+    (today.getMonth() === birthDate.getMonth() &&
+      today.getDate() < birthDate.getDate())
+  )
+    age -= 1;
+  return age >= 0 && age <= 17 ? age : null;
 }
 function dateTime(value: string) {
   return new Date(value).toLocaleString("pt-BR", {
