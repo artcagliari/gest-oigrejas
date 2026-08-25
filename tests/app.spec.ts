@@ -250,6 +250,13 @@ test("registra autorização infantil específica e check-in do culto", async ({
   await page.getByRole("button", { name: "Kids", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Kids" })).toBeVisible();
   await expect(page.getByText("Sofia Ribeiro", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Crianças", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "Gerar autorização impressa" }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Autorizações por culto", exact: true })
+    .click();
   await page.getByRole("button", { name: "Registrar" }).click();
   await page
     .getByRole("checkbox", { name: "Fotografia durante o culto" })

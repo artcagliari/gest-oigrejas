@@ -1754,6 +1754,9 @@ nav {
   margin: 0;
   font-weight: 650;
 }
+.child-print-consent {
+  margin-top: 16px;
+}
 .authorization-table {
   overflow: hidden;
 }
