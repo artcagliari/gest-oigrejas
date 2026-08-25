@@ -28,16 +28,15 @@ export type Person = {
   id: string;
   church_id: string;
   full_name: string;
-  preferred_name?: string;
   birth_date?: string;
   gender?: string;
   education?: string;
   marital_status?: string;
   spouse_name?: string;
+  children_names?: string[];
   conversion_date?: string;
   baptized?: boolean;
   document_cpf?: string;
-  document_rg?: string;
   email?: string;
   phone_primary?: string;
   phone_secondary?: string;
@@ -223,16 +222,20 @@ export type PublicChurchRegistration = {
 
 export type SelfRegistrationInput = {
   full_name: string;
-  preferred_name?: string;
   birth_date?: string;
   gender?: string;
+  education?: string;
   marital_status?: string;
+  spouse_name?: string;
+  document_cpf?: string;
   email?: string;
   phone_primary?: string;
   phone_secondary?: string;
   address: Person["address"];
   conversion_date?: string;
   baptized?: boolean;
+  categories: string[];
+  children_names: string[];
   messaging_consent: boolean;
   data_processing_consent: boolean;
 };
@@ -333,7 +336,6 @@ const demoData: WorkspaceData = {
       id: "p2",
       church_id: "demo-church",
       full_name: "Lucas Almeida",
-      preferred_name: "Lucas",
       phone_primary: "(11) 99672-1208",
       address: { city: "São Paulo", state: "SP", country: "Brasil" },
       categories: ["Novo convertido"],
@@ -365,7 +367,6 @@ const demoData: WorkspaceData = {
       id: "p4",
       church_id: "demo-church",
       full_name: "Sofia Ribeiro",
-      preferred_name: "Sofia",
       birth_date: "2018-05-12",
       address: { city: "São Paulo", state: "SP", country: "Brasil" },
       categories: ["Criança"],
@@ -866,6 +867,7 @@ export async function loadWorkspace(
       return {
         ...record,
         address: p.address ?? {},
+        children_names: p.children_names ?? [],
         categories: p.categories ?? [],
         ministry_roles: p.ministry_roles ?? [],
         group_ids: (teaching_group_members ?? []).map(
@@ -1503,17 +1505,20 @@ export async function submitPublicChurchRegistration(
       id: newId(),
       church_id: "demo-church",
       full_name: input.full_name.trim(),
-      preferred_name: input.preferred_name?.trim() || undefined,
       birth_date: input.birth_date || undefined,
       gender: input.gender || undefined,
+      education: input.education || undefined,
       marital_status: input.marital_status || undefined,
+      spouse_name: input.spouse_name?.trim() || undefined,
+      children_names: input.children_names,
+      document_cpf: input.document_cpf?.trim() || undefined,
       email: input.email?.trim().toLowerCase() || undefined,
       phone_primary: input.phone_primary?.trim() || undefined,
       phone_secondary: input.phone_secondary?.trim() || undefined,
       address: input.address,
       conversion_date: input.conversion_date || undefined,
       baptized: input.baptized,
-      categories: ["Pré-cadastro"],
+      categories: [...new Set(["Pré-cadastro", ...input.categories])],
       ministry_roles: [],
       group_ids: [],
       notes: "Cadastro realizado pelo link público da igreja.",

@@ -128,13 +128,12 @@ begin
   end if;
 
   insert into public.people (
-    church_id, full_name, preferred_name, birth_date, gender, marital_status,
+    church_id, full_name, birth_date, gender, marital_status,
     conversion_date, baptized, email, phone_primary, phone_secondary, address,
     categories, ministry_roles, notes, active
   ) values (
     target_church,
     person_name,
-    nullif(trim(coalesce(registration_data->>'preferred_name', '')), ''),
     nullif(registration_data->>'birth_date', '')::date,
     nullif(trim(coalesce(registration_data->>'gender', '')), ''),
     nullif(trim(coalesce(registration_data->>'marital_status', '')), ''),
@@ -180,4 +179,3 @@ grant execute on function public.get_church_registration_by_token(uuid) to anon,
 
 revoke all on function public.submit_church_self_registration(uuid, jsonb) from public;
 grant execute on function public.submit_church_self_registration(uuid, jsonb) to anon, authenticated;
-

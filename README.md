@@ -10,6 +10,7 @@ Sistema multi-igreja com Administrador da Plataforma isolado e Gestores Gerais p
 - equipe com cargos `super`, pessoas, ensino, financeiro, agenda e consulta;
 - pessoas com dados pessoais, endereço, categorias, funções, grupos, jornada espiritual, anotações e consentimentos LGPD;
 - link público de pré-cadastro por igreja, com validade, vínculo automático, prevenção de duplicidade e consentimento LGPD;
+- cadastro obrigatório com nascimento em `dd/mm/aaaa`, sexo, vínculo, endereço, vida cristã e nomes de múltiplos filhos; somente o telefone alternativo é opcional;
 - grupos de consolidação/ensino, liderança, capacidade, aulas e chamada individual;
 - departamentos com modelos, descrição e cargos próprios;
 - agenda mensal/lista, tipos de evento e criação de cultos;
@@ -34,7 +35,9 @@ Copie `.env.example` para `.env.local` e informe a URL e a chave anônima. No SQ
 6. `supabase/migrations/20260824223000_teaching_group_leaders.sql`
 7. `supabase/migrations/20260824224500_teaching_group_roles.sql`
 8. `supabase/migrations/20260824230000_church_self_registration.sql`
-9. `supabase/seed.sql`
+9. `supabase/migrations/20260824233000_person_required_fields.sql`
+10. `supabase/migrations/20260824234000_person_gender_values.sql`
+11. `supabase/seed.sql`
 
 O seed não cria dados fictícios nem igrejas. Ele transforma o único usuário existente no Auth em Administrador da Plataforma. Por segurança, ele para com erro se houver zero ou mais de um usuário.
 

@@ -1383,11 +1383,7 @@ function People({
                 <span className="avatar green">{initials(p.full_name)}</span>
                 <span>
                   <strong>{p.full_name}</strong>
-                  <small>
-                    {p.preferred_name
-                      ? `Prefere ${p.preferred_name}`
-                      : p.email || "Sem e-mail"}
-                  </small>
+                  <small>{p.email || "Sem e-mail"}</small>
                 </span>
               </span>
               <span>{p.phone_primary || "Não informado"}</span>
@@ -1495,17 +1491,16 @@ function PersonDetail({
             title="Dados pessoais"
             icon={UserRound}
             rows={[
-              ["Nome preferido", person.preferred_name],
               [
                 "Nascimento",
                 person.birth_date ? formatDate(person.birth_date) : undefined,
               ],
-              ["Gênero", person.gender],
+              ["Sexo", person.gender],
               ["Escolaridade", person.education],
               ["Estado civil", person.marital_status],
               ["Cônjuge", person.spouse_name],
+              ["Filhos", person.children_names?.join(", ")],
               ["CPF", person.document_cpf],
-              ["RG", person.document_rg],
             ]}
           />
           <InfoCard
@@ -1659,7 +1654,11 @@ function PersonForm({
 }) {
   const [form, setForm] = useState<Person>(
       initial
-        ? structuredClone(initial)
+        ? {
+            ...structuredClone(initial),
+            birth_date: toBrazilianDate(initial.birth_date),
+            children_names: initial.children_names ?? [],
+          }
         : {
             id: newId(),
             church_id: churchId,
@@ -1674,7 +1673,11 @@ function PersonForm({
     ),
     [section, setSection] = useState<"personal" | "church" | "consent">(
       "personal",
-    );
+    ),
+    [hasChildren, setHasChildren] = useState<boolean | undefined>(
+      initial ? Boolean(initial.children_names?.length) : undefined,
+    ),
+    [formError, setFormError] = useState("");
   const set = <K extends keyof Person>(key: K, value: Person[K]) =>
       setForm((prev) => ({ ...prev, [key]: value })),
     address = (key: keyof Person["address"], value: string) =>
@@ -1689,6 +1692,36 @@ function PersonForm({
           ? form[key].filter((v) => v !== value)
           : [...form[key], value],
       );
+  function continueForm(event: React.MouseEvent<HTMLButtonElement>) {
+    setFormError("");
+    const formElement = event.currentTarget.closest("form");
+    if (!formElement?.reportValidity()) return;
+    if (section === "personal") {
+      if (!brazilianDateToIso(form.birth_date)) {
+        setFormError("Informe uma data de nascimento válida em dd/mm/aaaa.");
+        return;
+      }
+      if (hasChildren === undefined) {
+        setFormError("Informe se a pessoa possui filhos.");
+        return;
+      }
+      if (
+        hasChildren &&
+        (!form.children_names?.length ||
+          form.children_names.some((name) => !name.trim()))
+      ) {
+        setFormError("Preencha o nome de todos os filhos adicionados.");
+        return;
+      }
+      setSection("church");
+      return;
+    }
+    if (!form.categories.length) {
+      setFormError("Assinale Membro, Visitante ou Criança.");
+      return;
+    }
+    setSection("consent");
+  }
   return (
     <ModalShell
       title={initial ? "Editar pessoa" : "Nova pessoa"}
@@ -1699,7 +1732,13 @@ function PersonForm({
       <form
         onSubmit={(e) => {
           e.preventDefault();
-          onSave(form);
+          const birthDate = brazilianDateToIso(form.birth_date);
+          if (!birthDate) {
+            setSection("personal");
+            setFormError("Informe uma data de nascimento válida.");
+            return;
+          }
+          onSave({ ...form, birth_date: birthDate });
         }}
       >
         <div className="form-tabs">
@@ -1726,6 +1765,7 @@ function PersonForm({
           </button>
         </div>
         <div className="form-scroll">
+          {formError && <div className="form-alert error">{formError}</div>}
           {section === "personal" && (
             <>
               <FormSection title="Identificação">
@@ -1738,29 +1778,23 @@ function PersonForm({
                     onChange={(v) => set("full_name", v)}
                   />
                   <Field
-                    label="Nome preferido"
-                    value={form.preferred_name}
-                    onChange={(v) => set("preferred_name", v)}
-                  />
-                  <Field
                     label="Data de nascimento"
-                    type="date"
+                    required
+                    placeholder="dd/mm/aaaa"
+                    inputMode="numeric"
                     value={form.birth_date}
-                    onChange={(v) => set("birth_date", v)}
+                    onChange={(v) => set("birth_date", maskBrazilianDate(v))}
                   />
                   <SelectField
-                    label="Gênero"
+                    label="Sexo"
+                    required
                     value={form.gender}
-                    options={[
-                      "Feminino",
-                      "Masculino",
-                      "Não binário",
-                      "Prefiro não informar",
-                    ]}
+                    options={["Homem", "Mulher", "Prefiro não informar"]}
                     onChange={(v) => set("gender", v)}
                   />
                   <SelectField
                     label="Escolaridade"
+                    required
                     value={form.education}
                     options={[
                       "Ensino Fundamental",
@@ -1772,6 +1806,7 @@ function PersonForm({
                   />
                   <SelectField
                     label="Estado civil"
+                    required
                     value={form.marital_status}
                     options={[
                       "Solteiro(a)",
@@ -1784,36 +1819,110 @@ function PersonForm({
                   />
                   <Field
                     label="Nome do cônjuge"
+                    required={
+                      form.marital_status === "Casado(a)" ||
+                      form.marital_status === "União estável"
+                    }
                     value={form.spouse_name}
                     onChange={(v) => set("spouse_name", v)}
                   />
                   <Field
                     label="CPF"
+                    required
                     value={form.document_cpf}
                     onChange={(v) => set("document_cpf", v)}
                   />
-                  <Field
-                    label="RG"
-                    value={form.document_rg}
-                    onChange={(v) => set("document_rg", v)}
+                </div>
+              </FormSection>
+              <FormSection title="Filhos">
+                <div className="form-grid">
+                  <SelectField
+                    label="Possui filhos?"
+                    required
+                    value={
+                      hasChildren === undefined
+                        ? ""
+                        : hasChildren
+                          ? "Sim"
+                          : "Não"
+                    }
+                    options={["Sim", "Não"]}
+                    onChange={(value) => {
+                      const next = value === "Sim";
+                      setHasChildren(value ? next : undefined);
+                      set("children_names", next ? [""] : []);
+                    }}
                   />
                 </div>
+                {hasChildren && (
+                  <div className="children-name-list">
+                    {(form.children_names ?? []).map((name, index) => (
+                      <div key={index}>
+                        <Field
+                          label={`Nome completo do filho ${index + 1}`}
+                          required
+                          value={name}
+                          onChange={(value) =>
+                            set(
+                              "children_names",
+                              (form.children_names ?? []).map(
+                                (current, itemIndex) =>
+                                  itemIndex === index ? value : current,
+                              ),
+                            )
+                          }
+                        />
+                        {(form.children_names?.length ?? 0) > 1 && (
+                          <button
+                            type="button"
+                            className="icon-only danger"
+                            aria-label={`Remover filho ${index + 1}`}
+                            onClick={() =>
+                              set(
+                                "children_names",
+                                (form.children_names ?? []).filter(
+                                  (_, itemIndex) => itemIndex !== index,
+                                ),
+                              )
+                            }
+                          >
+                            <Trash2 />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      className="secondary add-child-name"
+                      onClick={() =>
+                        set("children_names", [
+                          ...(form.children_names ?? []),
+                          "",
+                        ])
+                      }
+                    >
+                      <Plus /> Adicionar outro filho
+                    </button>
+                  </div>
+                )}
               </FormSection>
               <FormSection title="Contato">
                 <div className="form-grid">
                   <Field
                     label="Telefone principal"
+                    required
                     value={form.phone_primary}
                     onChange={(v) => set("phone_primary", v)}
                   />
                   <Field
-                    label="Telefone alternativo"
+                    label="Telefone alternativo (opcional)"
                     value={form.phone_secondary}
                     onChange={(v) => set("phone_secondary", v)}
                   />
                   <Field
                     label="E-mail"
                     type="email"
+                    required
                     wide
                     value={form.email}
                     onChange={(v) => set("email", v)}
@@ -1825,36 +1934,43 @@ function PersonForm({
                   <Field
                     label="Endereço"
                     wide
+                    required
                     value={form.address.street}
                     onChange={(v) => address("street", v)}
                   />
                   <Field
                     label="Número"
+                    required
                     value={form.address.number}
                     onChange={(v) => address("number", v)}
                   />
                   <Field
                     label="Bairro"
+                    required
                     value={form.address.district}
                     onChange={(v) => address("district", v)}
                   />
                   <Field
                     label="CEP"
+                    required
                     value={form.address.zip}
                     onChange={(v) => address("zip", v)}
                   />
                   <Field
                     label="Cidade"
+                    required
                     value={form.address.city}
                     onChange={(v) => address("city", v)}
                   />
                   <Field
                     label="Estado"
+                    required
                     value={form.address.state}
                     onChange={(v) => address("state", v)}
                   />
                   <Field
                     label="País"
+                    required
                     value={form.address.country}
                     onChange={(v) => address("country", v)}
                   />
@@ -1869,11 +1985,13 @@ function PersonForm({
                   <Field
                     label="Data de conversão"
                     type="date"
+                    required
                     value={form.conversion_date}
                     onChange={(v) => set("conversion_date", v)}
                   />
                   <SelectField
                     label="Batizado(a)"
+                    required
                     value={
                       form.baptized === undefined
                         ? ""
@@ -1888,17 +2006,7 @@ function PersonForm({
               </FormSection>
               <FormSection title="Categorias">
                 <div className="check-grid">
-                  {[
-                    "Criança",
-                    "Adolescente",
-                    "Visitante",
-                    "Novo convertido",
-                    "Congregado",
-                    "Membro",
-                    "Responsável",
-                    "Líder",
-                    "Pastor(a)",
-                  ].map((v) => (
+                  {["Criança", "Visitante", "Membro"].map((v) => (
                     <CheckCard
                       key={v}
                       label={v}
@@ -2014,9 +2122,7 @@ function PersonForm({
               key="continue"
               type="button"
               className="primary"
-              onClick={() =>
-                setSection(section === "personal" ? "church" : "consent")
-              }
+              onClick={continueForm}
             >
               Continuar <ChevronRight />
             </button>
@@ -3400,18 +3506,23 @@ function PublicChurchRegistrationPage({ token }: { token: string }) {
     [done, setDone] = useState(false),
     [error, setError] = useState(""),
     [website, setWebsite] = useState(""),
+    [hasChildren, setHasChildren] = useState<boolean | undefined>(undefined),
     [form, setForm] = useState<SelfRegistrationInput>({
       full_name: "",
-      preferred_name: "",
       birth_date: "",
       gender: "",
+      education: "",
       marital_status: "",
+      spouse_name: "",
+      document_cpf: "",
       email: "",
       phone_primary: "",
       phone_secondary: "",
       address: { country: "Brasil" },
       conversion_date: "",
       baptized: undefined,
+      categories: [],
+      children_names: [],
       messaging_consent: false,
       data_processing_consent: false,
     });
@@ -3443,13 +3554,33 @@ function PublicChurchRegistrationPage({ token }: { token: string }) {
     event.preventDefault();
     setError("");
     if (website) return;
-    if (!form.email?.trim() && !form.phone_primary?.trim()) {
-      setError("Informe pelo menos um telefone ou e-mail para contato.");
+    const birthDate = brazilianDateToIso(form.birth_date);
+    if (!birthDate) {
+      setError("Informe uma data de nascimento válida em dd/mm/aaaa.");
+      return;
+    }
+    if (!form.categories.length) {
+      setError("Assinale Membro, Visitante ou Criança.");
+      return;
+    }
+    if (hasChildren === undefined) {
+      setError("Informe se você possui filhos.");
+      return;
+    }
+    if (
+      hasChildren &&
+      (!form.children_names.length ||
+        form.children_names.some((name) => !name.trim()))
+    ) {
+      setError("Preencha o nome de todos os filhos adicionados.");
       return;
     }
     setLoading(true);
     try {
-      await submitPublicChurchRegistration(token, form);
+      await submitPublicChurchRegistration(token, {
+        ...form,
+        birth_date: birthDate,
+      });
       setDone(true);
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (reason) {
@@ -3526,31 +3657,40 @@ function PublicChurchRegistrationPage({ token }: { token: string }) {
                     onChange={(full_name) => setForm({ ...form, full_name })}
                   />
                   <Field
-                    label="Como prefere ser chamado(a)"
-                    value={form.preferred_name}
-                    onChange={(preferred_name) =>
-                      setForm({ ...form, preferred_name })
-                    }
-                  />
-                  <Field
                     label="Data de nascimento"
-                    type="date"
+                    required
+                    placeholder="dd/mm/aaaa"
+                    inputMode="numeric"
                     value={form.birth_date}
-                    onChange={(birth_date) => setForm({ ...form, birth_date })}
+                    onChange={(birth_date) =>
+                      setForm({
+                        ...form,
+                        birth_date: maskBrazilianDate(birth_date),
+                      })
+                    }
                   />
                   <SelectField
                     label="Sexo"
+                    required
                     value={form.gender}
-                    options={[
-                      "Masculino",
-                      "Feminino",
-                      "Outro",
-                      "Prefiro não informar",
-                    ]}
+                    options={["Homem", "Mulher", "Prefiro não informar"]}
                     onChange={(gender) => setForm({ ...form, gender })}
                   />
                   <SelectField
+                    label="Escolaridade"
+                    required
+                    value={form.education}
+                    options={[
+                      "Ensino Fundamental",
+                      "Ensino Médio",
+                      "Ensino Superior",
+                      "Pós-graduação",
+                    ]}
+                    onChange={(education) => setForm({ ...form, education })}
+                  />
+                  <SelectField
                     label="Estado civil"
+                    required
                     value={form.marital_status}
                     options={[
                       "Solteiro(a)",
@@ -3563,20 +3703,136 @@ function PublicChurchRegistrationPage({ token }: { token: string }) {
                       setForm({ ...form, marital_status })
                     }
                   />
+                  {(form.marital_status === "Casado(a)" ||
+                    form.marital_status === "União estável") && (
+                    <Field
+                      label="Nome completo do cônjuge"
+                      required
+                      value={form.spouse_name}
+                      onChange={(spouse_name) =>
+                        setForm({ ...form, spouse_name })
+                      }
+                    />
+                  )}
+                  <Field
+                    label="CPF"
+                    required
+                    value={form.document_cpf}
+                    onChange={(document_cpf) =>
+                      setForm({ ...form, document_cpf })
+                    }
+                  />
                 </div>
+              </FormSection>
+
+              <FormSection title="Vínculo com a igreja">
+                <p className="field-help">Assinale pelo menos uma opção.</p>
+                <div className="check-grid public-category-grid">
+                  {["Membro", "Visitante", "Criança"].map((category) => (
+                    <CheckCard
+                      key={category}
+                      label={category}
+                      checked={form.categories.includes(category)}
+                      onChange={() =>
+                        setForm({
+                          ...form,
+                          categories: form.categories.includes(category)
+                            ? form.categories.filter(
+                                (item) => item !== category,
+                              )
+                            : [...form.categories, category],
+                        })
+                      }
+                    />
+                  ))}
+                </div>
+              </FormSection>
+
+              <FormSection title="Filhos">
+                <div className="form-grid public-form-grid">
+                  <SelectField
+                    label="Possui filhos?"
+                    required
+                    value={
+                      hasChildren === undefined
+                        ? ""
+                        : hasChildren
+                          ? "Sim"
+                          : "Não"
+                    }
+                    options={["Sim", "Não"]}
+                    onChange={(value) => {
+                      const next = value === "Sim";
+                      setHasChildren(value ? next : undefined);
+                      setForm({ ...form, children_names: next ? [""] : [] });
+                    }}
+                  />
+                </div>
+                {hasChildren && (
+                  <div className="children-name-list">
+                    {form.children_names.map((name, index) => (
+                      <div key={index}>
+                        <Field
+                          label={`Nome completo do filho ${index + 1}`}
+                          required
+                          value={name}
+                          onChange={(value) =>
+                            setForm({
+                              ...form,
+                              children_names: form.children_names.map(
+                                (current, itemIndex) =>
+                                  itemIndex === index ? value : current,
+                              ),
+                            })
+                          }
+                        />
+                        {form.children_names.length > 1 && (
+                          <button
+                            type="button"
+                            className="icon-only danger"
+                            aria-label={`Remover filho ${index + 1}`}
+                            onClick={() =>
+                              setForm({
+                                ...form,
+                                children_names: form.children_names.filter(
+                                  (_, itemIndex) => itemIndex !== index,
+                                ),
+                              })
+                            }
+                          >
+                            <Trash2 />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      className="secondary add-child-name"
+                      onClick={() =>
+                        setForm({
+                          ...form,
+                          children_names: [...form.children_names, ""],
+                        })
+                      }
+                    >
+                      <Plus /> Adicionar outro filho
+                    </button>
+                  </div>
+                )}
               </FormSection>
 
               <FormSection title="Contato">
                 <div className="form-grid public-form-grid">
                   <Field
                     label="Telefone principal"
+                    required
                     value={form.phone_primary}
                     onChange={(phone_primary) =>
                       setForm({ ...form, phone_primary })
                     }
                   />
                   <Field
-                    label="Outro telefone"
+                    label="Telefone alternativo (opcional)"
                     value={form.phone_secondary}
                     onChange={(phone_secondary) =>
                       setForm({ ...form, phone_secondary })
@@ -3585,14 +3841,12 @@ function PublicChurchRegistrationPage({ token }: { token: string }) {
                   <Field
                     label="E-mail"
                     type="email"
+                    required
                     wide
                     value={form.email}
                     onChange={(email) => setForm({ ...form, email })}
                   />
                 </div>
-                <small className="field-help">
-                  Informe ao menos um telefone ou e-mail.
-                </small>
               </FormSection>
 
               <FormSection title="Endereço">
@@ -3600,36 +3854,43 @@ function PublicChurchRegistrationPage({ token }: { token: string }) {
                   <Field
                     label="Rua / endereço"
                     wide
+                    required
                     value={form.address.street}
                     onChange={(value) => setAddress("street", value)}
                   />
                   <Field
                     label="Número"
+                    required
                     value={form.address.number}
                     onChange={(value) => setAddress("number", value)}
                   />
                   <Field
                     label="Bairro"
+                    required
                     value={form.address.district}
                     onChange={(value) => setAddress("district", value)}
                   />
                   <Field
                     label="CEP"
+                    required
                     value={form.address.zip}
                     onChange={(value) => setAddress("zip", value)}
                   />
                   <Field
                     label="Cidade"
+                    required
                     value={form.address.city}
                     onChange={(value) => setAddress("city", value)}
                   />
                   <Field
                     label="Estado"
+                    required
                     value={form.address.state}
                     onChange={(value) => setAddress("state", value)}
                   />
                   <Field
                     label="País"
+                    required
                     value={form.address.country}
                     onChange={(value) => setAddress("country", value)}
                   />
@@ -3641,6 +3902,7 @@ function PublicChurchRegistrationPage({ token }: { token: string }) {
                   <Field
                     label="Data de conversão"
                     type="date"
+                    required
                     value={form.conversion_date}
                     onChange={(conversion_date) =>
                       setForm({ ...form, conversion_date })
@@ -3648,6 +3910,7 @@ function PublicChurchRegistrationPage({ token }: { token: string }) {
                   />
                   <SelectField
                     label="É batizado(a)?"
+                    required
                     value={
                       form.baptized === undefined ? "" : String(form.baptized)
                     }
@@ -5272,6 +5535,8 @@ function Field({
   type = "text",
   required,
   wide,
+  placeholder,
+  inputMode,
 }: {
   label: string;
   value?: string;
@@ -5279,6 +5544,8 @@ function Field({
   type?: string;
   required?: boolean;
   wide?: boolean;
+  placeholder?: string;
+  inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"];
 }) {
   return (
     <label className={wide ? "full" : ""}>
@@ -5286,6 +5553,8 @@ function Field({
       <input
         type={type}
         required={required}
+        placeholder={placeholder}
+        inputMode={inputMode}
         value={value ?? ""}
         onChange={(e) => onChange(e.target.value)}
       />
@@ -5357,6 +5626,31 @@ function currency(value: number) {
 }
 function formatDate(value: string) {
   return new Date(`${value}T12:00:00`).toLocaleDateString("pt-BR");
+}
+function maskBrazilianDate(value: string) {
+  const digits = value.replace(/\D/g, "").slice(0, 8);
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+  return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+}
+function toBrazilianDate(value?: string) {
+  if (!value) return "";
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(value)) return value;
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  return match ? `${match[3]}/${match[2]}/${match[1]}` : value;
+}
+function brazilianDateToIso(value?: string) {
+  const match = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(value ?? "");
+  if (!match) return null;
+  const [, day, month, year] = match;
+  const date = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day)));
+  if (
+    date.getUTCFullYear() !== Number(year) ||
+    date.getUTCMonth() !== Number(month) - 1 ||
+    date.getUTCDate() !== Number(day)
+  )
+    return null;
+  return `${year}-${month}-${day}`;
 }
 function dateTime(value: string) {
   return new Date(value).toLocaleString("pt-BR", {

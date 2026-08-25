@@ -54,8 +54,26 @@ test("cadastra e abre uma ficha aprofundada", async ({ page }) => {
   await page.getByRole("button", { name: "Pessoas", exact: true }).click();
   await page.getByRole("button", { name: "Nova pessoa" }).click();
   await page.getByLabel("Nome completo").fill("Pessoa de Teste");
+  await page.getByLabel("Data de nascimento").fill("10/05/1990");
+  await page.getByLabel("Sexo").selectOption("Homem");
+  await page.getByLabel("Escolaridade").selectOption("Ensino Médio");
+  await page.getByLabel("Estado civil").selectOption("Solteiro(a)");
+  await page.getByLabel("CPF").fill("123.456.789-01");
+  await page.getByLabel("Possui filhos?").selectOption("Sim");
+  await page.getByLabel("Nome completo do filho 1").fill("Gabriel Cadastro");
+  await page.getByRole("button", { name: "Adicionar outro filho" }).click();
+  await page.getByLabel("Nome completo do filho 2").fill("Helena Cadastro");
   await page.getByLabel("Telefone principal").fill("(11) 99999-0000");
+  await page.getByLabel("E-mail").fill("pessoa.teste@exemplo.org");
+  await page.getByLabel("Endereço").fill("Rua de Teste");
+  await page.getByLabel("Número").fill("100");
+  await page.getByLabel("Bairro").fill("Centro");
+  await page.getByLabel("CEP").fill("01000-000");
+  await page.getByLabel("Cidade").fill("São Paulo");
+  await page.getByLabel("Estado", { exact: true }).fill("SP");
   await page.getByRole("button", { name: /Continuar/ }).click();
+  await page.getByLabel("Data de conversão").fill("2020-01-10");
+  await page.getByLabel("Batizado(a)").selectOption("Sim");
   await page.getByRole("checkbox", { name: "Membro", exact: true }).click();
   await page
     .locator("label.check-card")
@@ -218,10 +236,26 @@ test("membro faz pré-cadastro pelo link e já fica vinculado à igreja", async 
   ).toBeVisible();
   await expect(page.getByText("Igreja da Promessa").first()).toBeVisible();
   await page.getByLabel("Nome completo").fill("Rafael do Cadastro");
-  await page.getByLabel("Data de nascimento").fill("1994-03-12");
+  await page.getByLabel("Data de nascimento").fill("12/03/1994");
+  await page.getByLabel("Sexo").selectOption("Homem");
+  await page.getByLabel("Escolaridade").selectOption("Ensino Superior");
+  await page.getByLabel("Estado civil").selectOption("Solteiro(a)");
+  await page.getByLabel("CPF").fill("987.654.321-00");
+  await page.getByRole("checkbox", { name: "Membro", exact: true }).check();
+  await page.getByLabel("Possui filhos?").selectOption("Sim");
+  await page.getByLabel("Nome completo do filho 1").fill("Gabriel Cadastro");
+  await page.getByRole("button", { name: "Adicionar outro filho" }).click();
+  await page.getByLabel("Nome completo do filho 2").fill("Helena Cadastro");
   await page.getByLabel("Telefone principal").fill("(11) 98888-7766");
   await page.getByLabel("E-mail").fill("rafael.cadastro@exemplo.org");
+  await page.getByLabel("Rua / endereço").fill("Rua Central");
+  await page.getByLabel("Número").fill("25");
+  await page.getByLabel("Bairro").fill("Centro");
+  await page.getByLabel("CEP").fill("01000-000");
   await page.getByLabel("Cidade").fill("São Paulo");
+  await page.getByLabel("Estado", { exact: true }).fill("SP");
+  await page.getByLabel("Data de conversão").fill("2021-05-01");
+  await page.getByLabel("É batizado(a)?").selectOption("true");
   await page
     .getByRole("checkbox", {
       name: /Autorizo o tratamento dos meus dados pessoais/,
@@ -243,5 +277,10 @@ test("membro faz pré-cadastro pelo link e já fica vinculado à igreja", async 
   });
   expect(savedPerson.church_id).toBe("demo-church");
   expect(savedPerson.categories).toContain("Pré-cadastro");
+  expect(savedPerson.categories).toContain("Membro");
+  expect(savedPerson.children_names).toEqual([
+    "Gabriel Cadastro",
+    "Helena Cadastro",
+  ]);
   expect(savedPerson.consent.data_processing).toBe(true);
 });

@@ -2234,6 +2234,30 @@ button.danger svg {
 .public-consent-options small {
   display: block;
 }
+.public-category-grid {
+  margin-top: 10px;
+  grid-template-columns: repeat(3, 1fr);
+}
+.children-name-list {
+  display: grid;
+  gap: 9px;
+  margin-top: 12px;
+}
+.children-name-list > div {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: end;
+  gap: 9px;
+}
+.children-name-list > div > label {
+  margin: 0;
+}
+.children-name-list .icon-only {
+  margin-bottom: 1px;
+}
+.add-child-name {
+  justify-self: start;
+}
 .public-consent-options small {
   margin-top: 3px;
   color: var(--muted);
@@ -2304,6 +2328,9 @@ button.danger svg {
     width: 100%;
   }
   .public-form-grid {
+    grid-template-columns: 1fr;
+  }
+  .public-category-grid {
     grid-template-columns: 1fr;
   }
   .public-registration-heading {
