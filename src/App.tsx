@@ -1386,7 +1386,9 @@ function People({
                   <small>{p.email || "Sem e-mail"}</small>
                 </span>
               </span>
-              <span>{p.phone_primary || "Não informado"}</span>
+              <span>
+                {p.phone_primary ? maskPhone(p.phone_primary) : "Não informado"}
+              </span>
               <span>{p.categories.join(", ") || "Sem categoria"}</span>
               <span>
                 <b className={`status ${!p.active ? "inactive" : ""}`}>
@@ -1450,7 +1452,7 @@ function PersonDetail({
             {person.phone_primary && (
               <span>
                 <Phone />
-                {person.phone_primary}
+                {maskPhone(person.phone_primary)}
               </span>
             )}
             {person.email && (
@@ -1501,8 +1503,18 @@ function PersonDetail({
             title="Contato e endereço"
             icon={Phone}
             rows={[
-              ["Telefone principal", person.phone_primary],
-              ["Telefone alternativo", person.phone_secondary],
+              [
+                "Telefone WhatsApp",
+                person.phone_primary
+                  ? maskPhone(person.phone_primary)
+                  : undefined,
+              ],
+              [
+                "Telefone alternativo",
+                person.phone_secondary
+                  ? maskPhone(person.phone_secondary)
+                  : undefined,
+              ],
               ["E-mail", person.email],
               [
                 "Endereço",
@@ -1652,6 +1664,8 @@ function PersonForm({
         ? {
             ...structuredClone(initial),
             birth_date: toBrazilianDate(initial.birth_date),
+            phone_primary: maskPhone(initial.phone_primary ?? ""),
+            phone_secondary: maskPhone(initial.phone_secondary ?? ""),
             children_names: initial.children_names ?? [],
           }
         : {
@@ -1807,17 +1821,21 @@ function PersonForm({
                       "Viúvo(a)",
                       "União estável",
                     ]}
-                    onChange={(v) => set("marital_status", v)}
+                    onChange={(v) => {
+                      set("marital_status", v);
+                      if (v !== "Casado(a)" && v !== "União estável")
+                        set("spouse_name", undefined);
+                    }}
                   />
-                  <Field
-                    label="Nome do cônjuge"
-                    required={
-                      form.marital_status === "Casado(a)" ||
-                      form.marital_status === "União estável"
-                    }
-                    value={form.spouse_name}
-                    onChange={(v) => set("spouse_name", v)}
-                  />
+                  {(form.marital_status === "Casado(a)" ||
+                    form.marital_status === "União estável") && (
+                    <Field
+                      label="Nome completo do cônjuge"
+                      required
+                      value={form.spouse_name}
+                      onChange={(v) => set("spouse_name", v)}
+                    />
+                  )}
                   <Field
                     label="CPF"
                     required
@@ -1901,15 +1919,15 @@ function PersonForm({
               <FormSection title="Contato">
                 <div className="form-grid">
                   <Field
-                    label="Telefone principal"
+                    label="Telefone WhatsApp"
                     required
                     value={form.phone_primary}
-                    onChange={(v) => set("phone_primary", v)}
+                    onChange={(v) => set("phone_primary", maskPhone(v))}
                   />
                   <Field
                     label="Telefone alternativo (opcional)"
                     value={form.phone_secondary}
-                    onChange={(v) => set("phone_secondary", v)}
+                    onChange={(v) => set("phone_secondary", maskPhone(v))}
                   />
                   <Field
                     label="E-mail"
@@ -1923,6 +1941,17 @@ function PersonForm({
               </FormSection>
               <FormSection title="Endereço">
                 <div className="form-grid">
+                  <CepField
+                    required
+                    value={form.address.zip}
+                    onChange={(v) => address("zip", v)}
+                    onAddress={(found) =>
+                      setForm((current) => ({
+                        ...current,
+                        address: { ...current.address, ...found },
+                      }))
+                    }
+                  />
                   <Field
                     label="Endereço"
                     wide
@@ -1937,27 +1966,16 @@ function PersonForm({
                     onChange={(v) => address("number", v)}
                   />
                   <Field
-                    label="Bairro"
-                    required
-                    value={form.address.district}
-                    onChange={(v) => address("district", v)}
-                  />
-                  <CepField
-                    required
-                    value={form.address.zip}
-                    onChange={(v) => address("zip", v)}
-                    onAddress={(found) =>
-                      setForm((current) => ({
-                        ...current,
-                        address: { ...current.address, ...found },
-                      }))
-                    }
-                  />
-                  <Field
                     label="Complemento"
                     required
                     value={form.address.complement}
                     onChange={(v) => address("complement", v)}
+                  />
+                  <Field
+                    label="Bairro"
+                    required
+                    value={form.address.district}
+                    onChange={(v) => address("district", v)}
                   />
                   <Field
                     label="Cidade"
@@ -3703,7 +3721,15 @@ function PublicChurchRegistrationPage({ token }: { token: string }) {
                       "União estável",
                     ]}
                     onChange={(marital_status) =>
-                      setForm({ ...form, marital_status })
+                      setForm({
+                        ...form,
+                        marital_status,
+                        spouse_name:
+                          marital_status === "Casado(a)" ||
+                          marital_status === "União estável"
+                            ? form.spouse_name
+                            : "",
+                      })
                     }
                   />
                   {(form.marital_status === "Casado(a)" ||
@@ -3827,18 +3853,24 @@ function PublicChurchRegistrationPage({ token }: { token: string }) {
               <FormSection title="Contato">
                 <div className="form-grid public-form-grid">
                   <Field
-                    label="Telefone principal"
+                    label="Telefone WhatsApp"
                     required
                     value={form.phone_primary}
                     onChange={(phone_primary) =>
-                      setForm({ ...form, phone_primary })
+                      setForm({
+                        ...form,
+                        phone_primary: maskPhone(phone_primary),
+                      })
                     }
                   />
                   <Field
                     label="Telefone alternativo (opcional)"
                     value={form.phone_secondary}
                     onChange={(phone_secondary) =>
-                      setForm({ ...form, phone_secondary })
+                      setForm({
+                        ...form,
+                        phone_secondary: maskPhone(phone_secondary),
+                      })
                     }
                   />
                   <Field
@@ -3854,6 +3886,17 @@ function PublicChurchRegistrationPage({ token }: { token: string }) {
 
               <FormSection title="Endereço">
                 <div className="form-grid public-form-grid">
+                  <CepField
+                    required
+                    value={form.address.zip}
+                    onChange={(value) => setAddress("zip", value)}
+                    onAddress={(found) =>
+                      setForm((current) => ({
+                        ...current,
+                        address: { ...current.address, ...found },
+                      }))
+                    }
+                  />
                   <Field
                     label="Rua / endereço"
                     wide
@@ -3868,27 +3911,16 @@ function PublicChurchRegistrationPage({ token }: { token: string }) {
                     onChange={(value) => setAddress("number", value)}
                   />
                   <Field
-                    label="Bairro"
-                    required
-                    value={form.address.district}
-                    onChange={(value) => setAddress("district", value)}
-                  />
-                  <CepField
-                    required
-                    value={form.address.zip}
-                    onChange={(value) => setAddress("zip", value)}
-                    onAddress={(found) =>
-                      setForm((current) => ({
-                        ...current,
-                        address: { ...current.address, ...found },
-                      }))
-                    }
-                  />
-                  <Field
                     label="Complemento"
                     required
                     value={form.address.complement}
                     onChange={(value) => setAddress("complement", value)}
+                  />
+                  <Field
+                    label="Bairro"
+                    required
+                    value={form.address.district}
+                    onChange={(value) => setAddress("district", value)}
                   />
                   <Field
                     label="Cidade"
@@ -5544,7 +5576,7 @@ function FormSection({
 }
 type CepAddress = Pick<
   Person["address"],
-  "street" | "district" | "complement" | "city" | "state" | "zip"
+  "street" | "district" | "city" | "state" | "zip"
 >;
 function CepField({
   value,
@@ -5574,7 +5606,6 @@ function CepField({
         erro?: boolean;
         cep?: string;
         logradouro?: string;
-        complemento?: string;
         bairro?: string;
         localidade?: string;
         uf?: string;
@@ -5584,7 +5615,6 @@ function CepField({
         zip: data.cep ?? value,
         street: data.logradouro ?? "",
         district: data.bairro ?? "",
-        complement: data.complemento ?? "",
         city: data.localidade ?? "",
         state: data.uf ?? "",
       });
@@ -5733,6 +5763,15 @@ function maskCep(value: string) {
   return digits.length > 5
     ? `${digits.slice(0, 5)}-${digits.slice(5)}`
     : digits;
+}
+function maskPhone(value: string) {
+  const digits = value.replace(/\D/g, "").slice(0, 11);
+  if (!digits) return "";
+  if (digits.length <= 2) return `(${digits}`;
+  if (digits.length <= 6) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+  if (digits.length <= 10)
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+  return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
 }
 function toBrazilianDate(value?: string) {
   if (!value) return "";

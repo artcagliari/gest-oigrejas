@@ -76,7 +76,10 @@ test("cadastra e abre uma ficha aprofundada", async ({ page }) => {
   await page.getByLabel("Nome completo do filho 1").fill("Gabriel Cadastro");
   await page.getByRole("button", { name: "Adicionar outro filho" }).click();
   await page.getByLabel("Nome completo do filho 2").fill("Helena Cadastro");
-  await page.getByLabel("Telefone principal").fill("(11) 99999-0000");
+  await page.getByLabel("Telefone WhatsApp").fill("11999990000");
+  await expect(page.getByLabel("Telefone WhatsApp")).toHaveValue(
+    "(11) 99999-0000",
+  );
   await page.getByLabel("E-mail").fill("pessoa.teste@exemplo.org");
   await page.getByLabel("Endereço").fill("Rua de Teste");
   await page.getByLabel("Número").fill("100");
@@ -88,10 +91,7 @@ test("cadastra e abre uma ficha aprofundada", async ({ page }) => {
   await page.getByRole("button", { name: /Continuar/ }).click();
   await page.getByLabel("Data de conversão").fill("2020-01-10");
   await page.getByLabel("Batizado(a)").selectOption("Sim");
-  await page
-    .locator("label.check-card")
-    .filter({ hasText: "Membro" })
-    .click();
+  await page.locator("label.check-card").filter({ hasText: "Membro" }).click();
   await page
     .locator("label.check-card")
     .filter({ hasText: "Consolidação Essencial" })
@@ -265,7 +265,7 @@ test("membro faz pré-cadastro pelo link e já fica vinculado à igreja", async 
   await page.getByLabel("Nome completo do filho 1").fill("Gabriel Cadastro");
   await page.getByRole("button", { name: "Adicionar outro filho" }).click();
   await page.getByLabel("Nome completo do filho 2").fill("Helena Cadastro");
-  await page.getByLabel("Telefone principal").fill("(11) 98888-7766");
+  await page.getByLabel("Telefone WhatsApp").fill("11988887766");
   await page.getByLabel("E-mail").fill("rafael.cadastro@exemplo.org");
   await page.getByLabel("CEP").fill("01000-000");
   await page.getByLabel("CEP").press("Tab");
@@ -273,7 +273,9 @@ test("membro faz pré-cadastro pelo link e já fica vinculado à igreja", async 
     "Rua preenchida pelo CEP",
   );
   await expect(page.getByLabel("Cidade")).toHaveValue("São Paulo");
+  await expect(page.getByLabel("Complemento")).toHaveValue("");
   await page.getByLabel("Número").fill("25");
+  await page.getByLabel("Complemento").fill("Casa 2");
   await page.getByLabel("Data de conversão").fill("2021-05-01");
   await page.getByLabel("É batizado(a)?").selectOption("true");
   await page
