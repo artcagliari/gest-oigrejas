@@ -171,7 +171,13 @@ function AuthenticatedApp() {
   } | null>(null);
   const showToast = useCallback(
     (message: string, type: "success" | "error" = "success") => {
-      setToast({ message, type });
+      setToast({
+        message:
+          type === "error"
+            ? friendlyErrorMessage(message, "Não foi possível concluir a ação.")
+            : message,
+        type,
+      });
       window.setTimeout(() => setToast(null), 3600);
     },
     [],
@@ -224,7 +230,10 @@ function AuthenticatedApp() {
       })
       .catch((error) =>
         showToast(
-          `Não foi possível carregar os dados: ${error.message}`,
+          friendlyErrorMessage(
+            error,
+            "Não foi possível carregar os dados da igreja.",
+          ),
           "error",
         ),
       )
@@ -261,7 +270,7 @@ function AuthenticatedApp() {
       showToast(success);
     } catch (error) {
       showToast(
-        error instanceof Error ? error.message : "Não foi possível salvar.",
+        friendlyErrorMessage(error, "Não foi possível salvar agora."),
         "error",
       );
     } finally {
@@ -713,11 +722,7 @@ function Login({
     try {
       await onLogin(email, password, role);
     } catch (err) {
-      setError(
-        err instanceof Error
-          ? translateAuthError(err.message)
-          : "Não foi possível entrar.",
-      );
+      setError(friendlyErrorMessage(err, "Não foi possível entrar."));
     } finally {
       setBusy(false);
     }
@@ -867,6 +872,59 @@ function translateAuthError(message: string) {
   if (message.includes("Invalid login")) return "E-mail ou senha incorretos.";
   if (message.includes("Email not confirmed"))
     return "Confirme seu e-mail antes de entrar.";
+  return friendlyErrorMessage(message, "Não foi possível entrar.");
+}
+
+function friendlyErrorMessage(reason: unknown, fallback: string) {
+  const raw =
+    reason instanceof Error
+      ? reason.message
+      : typeof reason === "string"
+        ? reason
+        : "";
+  const message = raw.trim();
+  if (!message) return fallback;
+  const lower = message.toLowerCase();
+  if (lower.includes("invalid login")) return "E-mail ou senha incorretos.";
+  if (lower.includes("email not confirmed"))
+    return "Confirme seu e-mail antes de entrar.";
+  if (lower.includes("jwt") || lower.includes("session"))
+    return "Sua sessão expirou. Entre novamente para continuar.";
+  if (
+    lower.includes("failed to fetch") ||
+    lower.includes("network") ||
+    lower.includes("fetch")
+  )
+    return "Falha de conexão. Confira a internet e tente novamente.";
+  if (
+    lower.includes("row-level security") ||
+    lower.includes("permission denied") ||
+    lower.includes("not authorized") ||
+    lower.includes("403") ||
+    lower.includes("42501")
+  )
+    return "Você não tem permissão para fazer essa alteração.";
+  if (
+    lower.includes("duplicate key") ||
+    lower.includes("already exists") ||
+    lower.includes("23505")
+  )
+    return "Já existe um cadastro com essas informações.";
+  if (lower.includes("function") && lower.includes("not"))
+    return "Uma função do Supabase ainda não está publicada. Publique as funções e tente novamente.";
+  const technicalTerms = [
+    "supabase",
+    "postgrest",
+    "pgrst",
+    "violates",
+    "foreign key",
+    "invalid input syntax",
+    "relation",
+    "column",
+    "edge function",
+    "status code",
+  ];
+  if (technicalTerms.some((term) => lower.includes(term))) return fallback;
   return message;
 }
 
@@ -1311,9 +1369,10 @@ function People({
       }
     } catch (error) {
       notify(
-        error instanceof Error
-          ? error.message
-          : "Não foi possível gerar o link de cadastro.",
+        friendlyErrorMessage(
+          error,
+          "Não foi possível gerar o link de cadastro.",
+        ),
         "error",
       );
     } finally {
@@ -1777,19 +1836,9 @@ function PersonForm({
         setFormError("Informe se a pessoa possui filhos.");
         return;
       }
-      if (
-        hasChildren &&
-        (!children.length ||
-          children.some(
-            (child) =>
-              child.full_name.trim().length < 3 ||
-              childAge(child.birth_date) === null ||
-              child.document_cpf.replace(/\D/g, "").length !== 11,
-          ))
-      ) {
-        setFormError(
-          "Preencha nome completo, nascimento de menor de 18 anos e CPF de cada filho.",
-        );
+      const childrenError = hasChildren ? familyChildrenError(children) : "";
+      if (childrenError) {
+        setFormError(childrenError);
         return;
       }
       const familyCpfs = [
@@ -1827,6 +1876,12 @@ function PersonForm({
           if (!birthDate) {
             setSection("personal");
             setFormError("Informe uma data de nascimento válida.");
+            return;
+          }
+          const childrenError = hasChildren ? familyChildrenError(children) : "";
+          if (childrenError) {
+            setSection("personal");
+            setFormError(childrenError);
             return;
           }
           const preparedChildren = children.map((child) => ({
@@ -3500,7 +3555,14 @@ function PublicAuthorizationPage({ token }: { token: string }) {
         setAuthorization(data);
         if (!data) setError("Autorização não encontrada ou link inválido.");
       })
-      .catch((reason) => setError(reason.message))
+      .catch((reason) =>
+        setError(
+          friendlyErrorMessage(
+            reason,
+            "Não foi possível abrir a autorização.",
+          ),
+        ),
+      )
       .finally(() => setLoading(false));
   }, [token]);
   async function submit(event: FormEvent) {
@@ -3511,9 +3573,7 @@ function PublicAuthorizationPage({ token }: { token: string }) {
       setDone(true);
     } catch (reason) {
       setError(
-        reason instanceof Error
-          ? reason.message
-          : "Não foi possível registrar.",
+        friendlyErrorMessage(reason, "Não foi possível registrar."),
       );
     } finally {
       setLoading(false);
@@ -3667,9 +3727,10 @@ function PublicChurchRegistrationPage({ token }: { token: string }) {
       })
       .catch((reason) =>
         setError(
-          reason instanceof Error
-            ? reason.message
-            : "Não foi possível abrir o cadastro.",
+          friendlyErrorMessage(
+            reason,
+            "Não foi possível abrir o cadastro.",
+          ),
         ),
       )
       .finally(() => setLoading(false));
@@ -3704,28 +3765,19 @@ function PublicChurchRegistrationPage({ token }: { token: string }) {
       setError("Informe um CPF válido para o responsável.");
       return;
     }
+    const childrenError = hasChildren
+      ? familyChildrenError(form.children, "criança")
+      : "";
+    if (childrenError) {
+      setError(childrenError);
+      return;
+    }
     const preparedChildren = form.children.map((child) => ({
       full_name: child.full_name.trim(),
       birth_date: brazilianDateToIso(child.birth_date) ?? "",
       document_cpf: child.document_cpf.replace(/\D/g, ""),
       valid_child_age: childAge(child.birth_date) !== null,
     }));
-    if (
-      hasChildren &&
-      (!preparedChildren.length ||
-        preparedChildren.some(
-          (child) =>
-            child.full_name.length < 3 ||
-            !child.birth_date ||
-            child.document_cpf.length !== 11 ||
-            !child.valid_child_age,
-        ))
-    ) {
-      setError(
-        "Preencha nome completo, data de nascimento de menor de 18 anos e CPF de cada criança.",
-      );
-      return;
-    }
     const familyCpfs = [
       normalizedParentCpf,
       ...preparedChildren.map((child) => child.document_cpf),
@@ -3749,9 +3801,7 @@ function PublicChurchRegistrationPage({ token }: { token: string }) {
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (reason) {
       setError(
-        reason instanceof Error
-          ? reason.message
-          : "Não foi possível enviar o cadastro.",
+        friendlyErrorMessage(reason, "Não foi possível enviar o cadastro."),
       );
     } finally {
       setLoading(false);
@@ -4804,7 +4854,11 @@ function Access({
   useEffect(() => {
     loadTeam(churchId)
       .then(setTeam)
-      .catch((error) => notify(error.message));
+      .catch((error) =>
+        notify(
+          friendlyErrorMessage(error, "Não foi possível carregar a equipe."),
+        ),
+      );
   }, [churchId, notify]);
   async function sendInvite(event: FormEvent) {
     event.preventDefault();
@@ -4836,9 +4890,7 @@ function Access({
           : "Convite enviado por e-mail.",
       );
     } catch (error) {
-      notify(
-        error instanceof Error ? error.message : "Não foi possível convidar.",
-      );
+      notify(friendlyErrorMessage(error, "Não foi possível convidar."));
     } finally {
       setBusy(false);
     }
@@ -5843,9 +5895,7 @@ function CepField({
         state: data.uf ?? "",
       });
     } catch (reason) {
-      setCepError(
-        reason instanceof Error ? reason.message : "CEP não encontrado.",
-      );
+      setCepError(friendlyErrorMessage(reason, "CEP não encontrado."));
     } finally {
       setLoadingCep(false);
     }
@@ -6061,6 +6111,25 @@ function childAge(value?: string) {
   )
     age -= 1;
   return age >= 0 && age <= 17 ? age : null;
+}
+function familyChildrenError(
+  children: FamilyChildInput[],
+  childLabel = "filho",
+) {
+  if (!children.length)
+    return `Adicione pelo menos um ${childLabel} antes de continuar.`;
+  for (const [index, child] of children.entries()) {
+    const label = `${childLabel.charAt(0).toUpperCase()}${childLabel.slice(1)} ${index + 1}`;
+    if (child.full_name.trim().length < 3)
+      return `${label}: informe o nome completo.`;
+    if (!brazilianDateToIso(child.birth_date))
+      return `${label}: informe a data de nascimento em dd/mm/aaaa.`;
+    if (childAge(child.birth_date) === null)
+      return `${label}: a data precisa ser de uma pessoa menor de 18 anos.`;
+    if (child.document_cpf.replace(/\D/g, "").length !== 11)
+      return `${label}: informe um CPF com 11 números.`;
+  }
+  return "";
 }
 function dateTime(value: string) {
   return new Date(value).toLocaleString("pt-BR", {
