@@ -986,7 +986,8 @@ export async function savePerson(
     localWrite(next);
     return next;
   }
-  const { consent, group_ids, ...record } = person;
+  const { consent, group_ids, group_roles, ...record } = person;
+  void group_roles;
   const { data: saved, error } = await supabase
     .from("people")
     .upsert(record)
@@ -1050,7 +1051,9 @@ export async function savePersonFamily(
       birth_date: child.birth_date,
       document_cpf: child.document_cpf.trim(),
       address: structuredClone(parent.address),
-      categories: childCategories,
+      categories: existingPerson?.categories.length
+        ? existingPerson.categories
+        : childCategories,
     };
     if (childAge >= 18) {
       next = await savePerson(next, childPerson);

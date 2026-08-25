@@ -155,6 +155,36 @@ const nav: {
   },
 ];
 
+function familyChildrenForPerson(data: WorkspaceData, person: Person) {
+  const linkedChildren = data.guardians
+    .filter((guardian) => guardian.guardian_person_id === person.id)
+    .map((guardian) =>
+      data.people.find((item) => item.id === guardian.child_id),
+    )
+    .filter((item): item is Person => Boolean(item));
+  const namedChildren = (person.children_names ?? [])
+    .map((name) =>
+      data.people.find(
+        (item) =>
+          item.church_id === person.church_id &&
+          item.id !== person.id &&
+          item.full_name === name,
+      ),
+    )
+    .filter((item): item is Person => Boolean(item));
+  return [...linkedChildren, ...namedChildren]
+    .filter(
+      (child, index, all) =>
+        all.findIndex((item) => item.id === child.id) === index,
+    )
+    .map((child) => ({
+      id: child.id,
+      full_name: child.full_name,
+      birth_date: child.birth_date ?? "",
+      document_cpf: child.document_cpf ?? "",
+    }));
+}
+
 function AuthenticatedApp() {
   const [identity, setIdentity] = useState<Identity | null>(null);
   const [booting, setBooting] = useState(!isDemoMode);
@@ -474,25 +504,7 @@ function AuthenticatedApp() {
           churchId={churchId}
           initial={modal.person}
           familyChildren={
-            modal.person
-              ? workspace.guardians
-                  .filter(
-                    (guardian) =>
-                      guardian.guardian_person_id === modal.person?.id,
-                  )
-                  .map((guardian) =>
-                    workspace.people.find(
-                      (person) => person.id === guardian.child_id,
-                    ),
-                  )
-                  .filter((person): person is Person => Boolean(person))
-                  .map((person) => ({
-                    id: person.id,
-                    full_name: person.full_name,
-                    birth_date: person.birth_date ?? "",
-                    document_cpf: person.document_cpf ?? "",
-                  }))
-              : []
+            modal.person ? familyChildrenForPerson(workspace, modal.person) : []
           }
           onClose={() => setModal(null)}
           notify={showToast}
