@@ -1090,7 +1090,15 @@ export async function savePersonFamily(
   let next = await savePerson(data, parent);
 
   for (const child of familyChildren) {
-    const childId = child.id ?? newId();
+    const normalizedChildCpf = child.document_cpf.replace(/\D/g, "");
+    const personWithSameCpf = next.people.find(
+      (item) =>
+        item.church_id === parent.church_id &&
+        item.id !== parent.id &&
+        normalizedChildCpf.length === 11 &&
+        item.document_cpf?.replace(/\D/g, "") === normalizedChildCpf,
+    );
+    const childId = child.id ?? personWithSameCpf?.id ?? newId();
     const childAge = ageFromIsoDate(child.birth_date);
     const childCategories = childAge < 18 ? ["Criança"] : ["Pré-cadastro"];
     if (childAge >= 12 && childAge < 18) childCategories.push("Adolescente");
@@ -1121,6 +1129,20 @@ export async function savePersonFamily(
       const existingProfile = next.children.find(
         (profile) => profile.person_id === childId,
       );
+      const pickupPeople = [
+        ...(existingProfile?.authorized_pickup_people ?? []),
+        { name: parent.full_name, document: parent.document_cpf },
+      ].filter(
+        (pickup, index, all) =>
+          all.findIndex(
+            (item) =>
+              (pickup.document &&
+                item.document?.replace(/\D/g, "") ===
+                  pickup.document.replace(/\D/g, "")) ||
+              item.name.toLocaleLowerCase("pt-BR") ===
+                pickup.name.toLocaleLowerCase("pt-BR"),
+          ) === index,
+      );
       next = await saveChild(
         next,
         childPerson,
@@ -1134,12 +1156,7 @@ export async function savePersonFamily(
           }),
           emergency_contact_name: parent.full_name,
           emergency_contact_phone: parent.phone_primary,
-          authorized_pickup_people: [
-            {
-              name: parent.full_name,
-              document: parent.document_cpf,
-            },
-          ],
+          authorized_pickup_people: pickupPeople,
         },
         parent.id,
         "Pai, mãe ou responsável",
@@ -1363,6 +1380,12 @@ export async function saveChild(
   guardianPersonId?: string,
   relationship = "Responsável legal",
 ): Promise<WorkspaceData> {
+  const alreadyHasPrimaryGuardian = data.guardians.some(
+    (item) =>
+      item.child_id === person.id &&
+      item.primary_contact &&
+      item.guardian_person_id !== guardianPersonId,
+  );
   if (isDemoMode || !supabase) {
     const guardian: ChildGuardian | null = guardianPersonId
       ? {
@@ -1372,7 +1395,7 @@ export async function saveChild(
           guardian_person_id: guardianPersonId,
           relationship,
           legal_guardian: true,
-          primary_contact: true,
+          primary_contact: !alreadyHasPrimaryGuardian,
           can_pickup: true,
         }
       : null;
@@ -1388,7 +1411,13 @@ export async function saveChild(
       ],
       guardians: guardian
         ? [
-            ...data.guardians.filter((item) => item.child_id !== person.id),
+            ...data.guardians.filter(
+              (item) =>
+                !(
+                  item.child_id === person.id &&
+                  item.guardian_person_id === guardianPersonId
+                ),
+            ),
             guardian,
           ]
         : data.guardians,
@@ -1411,7 +1440,7 @@ export async function saveChild(
           guardian_person_id: guardianPersonId,
           relationship,
           legal_guardian: true,
-          primary_contact: true,
+          primary_contact: !alreadyHasPrimaryGuardian,
           can_pickup: true,
         },
         { onConflict: "child_id,guardian_person_id" },
