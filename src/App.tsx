@@ -1470,13 +1470,7 @@ function PersonDetail({
           className={tab === "info" ? "active" : ""}
           onClick={() => setTab("info")}
         >
-          Informações
-        </button>
-        <button
-          className={tab === "church" ? "active" : ""}
-          onClick={() => setTab("church")}
-        >
-          Vida na igreja
+          Informações e vida na igreja
         </button>
         <button
           className={tab === "consent" ? "active" : ""}
@@ -1535,7 +1529,7 @@ function PersonDetail({
           />
         </div>
       )}
-      {tab === "church" && (
+      {tab === "info" && (
         <div className="detail-grid">
           <InfoCard
             title="Jornada espiritual"
@@ -1714,7 +1708,11 @@ function PersonForm({
         setFormError("Preencha o nome de todos os filhos adicionados.");
         return;
       }
-      setSection("church");
+      if (!form.categories.length) {
+        setFormError("Assinale Membro, Visitante ou Criança.");
+        return;
+      }
+      setSection("consent");
       return;
     }
     if (!form.categories.length) {
@@ -1748,21 +1746,14 @@ function PersonForm({
             className={section === "personal" ? "active" : ""}
             onClick={() => setSection("personal")}
           >
-            1. Dados pessoais
-          </button>
-          <button
-            type="button"
-            className={section === "church" ? "active" : ""}
-            onClick={() => setSection("church")}
-          >
-            2. Vida na igreja
+            1. Cadastro completo
           </button>
           <button
             type="button"
             className={section === "consent" ? "active" : ""}
             onClick={() => setSection("consent")}
           >
-            3. Consentimentos
+            2. Consentimentos
           </button>
         </div>
         <div className="form-scroll">
@@ -1990,7 +1981,7 @@ function PersonForm({
               </FormSection>
             </>
           )}
-          {section === "church" && (
+          {section === "personal" && (
             <>
               <FormSection title="Jornada espiritual">
                 <div className="form-grid">

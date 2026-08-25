@@ -88,7 +88,10 @@ test("cadastra e abre uma ficha aprofundada", async ({ page }) => {
   await page.getByRole("button", { name: /Continuar/ }).click();
   await page.getByLabel("Data de conversão").fill("2020-01-10");
   await page.getByLabel("Batizado(a)").selectOption("Sim");
-  await page.getByRole("checkbox", { name: "Membro", exact: true }).click();
+  await page
+    .locator("label.check-card")
+    .filter({ hasText: "Membro" })
+    .click();
   await page
     .locator("label.check-card")
     .filter({ hasText: "Consolidação Essencial" })
@@ -100,7 +103,9 @@ test("cadastra e abre uma ficha aprofundada", async ({ page }) => {
   await expect(page.getByText("Pessoa cadastrada.")).toBeVisible();
   await page.getByText("Pessoa de Teste", { exact: true }).click();
   await expect(page.getByText("FICHA DA PESSOA")).toBeVisible();
-  await page.getByRole("button", { name: "Vida na igreja" }).click();
+  await page
+    .getByRole("button", { name: "Informações e vida na igreja" })
+    .click();
   await expect(
     page.getByText("Consolidação Essencial", { exact: true }),
   ).toBeVisible();
