@@ -1029,8 +1029,9 @@ export async function savePersonFamily(
 
   for (const child of familyChildren) {
     const childId = child.id ?? newId();
-    const childCategories = ["Criança"];
-    if (ageFromIsoDate(child.birth_date) >= 12)
+    const childAge = ageFromIsoDate(child.birth_date);
+    const childCategories = childAge < 18 ? ["Criança"] : ["Pré-cadastro"];
+    if (childAge >= 12 && childAge < 18)
       childCategories.push("Adolescente");
     const existingPerson = next.people.find((item) => item.id === childId);
     const childPerson: Person = {
@@ -1051,32 +1052,36 @@ export async function savePersonFamily(
       address: structuredClone(parent.address),
       categories: childCategories,
     };
-    const existingProfile = next.children.find(
-      (profile) => profile.person_id === childId,
-    );
-    next = await saveChild(
-      next,
-      childPerson,
-      {
-        ...(existingProfile ?? {
-          person_id: childId,
-          church_id: parent.church_id,
-          authorized_pickup_people: [],
-          pickup_code_required: true,
-          active: true,
-        }),
-        emergency_contact_name: parent.full_name,
-        emergency_contact_phone: parent.phone_primary,
-        authorized_pickup_people: [
-          {
-            name: parent.full_name,
-            document: parent.document_cpf,
-          },
-        ],
-      },
-      parent.id,
-      "Pai, mãe ou responsável",
-    );
+    if (childAge >= 18) {
+      next = await savePerson(next, childPerson);
+    } else {
+      const existingProfile = next.children.find(
+        (profile) => profile.person_id === childId,
+      );
+      next = await saveChild(
+        next,
+        childPerson,
+        {
+          ...(existingProfile ?? {
+            person_id: childId,
+            church_id: parent.church_id,
+            authorized_pickup_people: [],
+            pickup_code_required: true,
+            active: true,
+          }),
+          emergency_contact_name: parent.full_name,
+          emergency_contact_phone: parent.phone_primary,
+          authorized_pickup_people: [
+            {
+              name: parent.full_name,
+              document: parent.document_cpf,
+            },
+          ],
+        },
+        parent.id,
+        "Pai, mãe ou responsável",
+      );
+    }
   }
 
   return next;
@@ -1698,8 +1703,10 @@ export async function submitPublicChurchRegistration(
     });
     for (const child of input.children) {
       const childId = newId();
-      const childCategories = ["Pré-cadastro", "Criança"];
-      if (ageFromIsoDate(child.birth_date) >= 12)
+      const childAge = ageFromIsoDate(child.birth_date);
+      const childCategories =
+        childAge < 18 ? ["Pré-cadastro", "Criança"] : ["Pré-cadastro"];
+      if (childAge >= 12 && childAge < 18)
         childCategories.push("Adolescente");
       data.people.push({
         id: childId,
@@ -1718,30 +1725,32 @@ export async function submitPublicChurchRegistration(
           data_processing: input.data_processing_consent,
         },
       });
-      data.children.push({
-        person_id: childId,
-        church_id: "demo-church",
-        emergency_contact_name: input.full_name.trim(),
-        emergency_contact_phone: input.phone_primary?.trim(),
-        authorized_pickup_people: [
-          {
-            name: input.full_name.trim(),
-            document: input.document_cpf?.trim(),
-          },
-        ],
-        pickup_code_required: true,
-        active: true,
-      });
-      data.guardians.push({
-        id: newId(),
-        church_id: "demo-church",
-        child_id: childId,
-        guardian_person_id: parentId,
-        relationship: "Pai, mãe ou responsável",
-        legal_guardian: true,
-        primary_contact: true,
-        can_pickup: true,
-      });
+      if (childAge < 18) {
+        data.children.push({
+          person_id: childId,
+          church_id: "demo-church",
+          emergency_contact_name: input.full_name.trim(),
+          emergency_contact_phone: input.phone_primary?.trim(),
+          authorized_pickup_people: [
+            {
+              name: input.full_name.trim(),
+              document: input.document_cpf?.trim(),
+            },
+          ],
+          pickup_code_required: true,
+          active: true,
+        });
+        data.guardians.push({
+          id: newId(),
+          church_id: "demo-church",
+          child_id: childId,
+          guardian_person_id: parentId,
+          relationship: "Pai, mãe ou responsável",
+          legal_guardian: true,
+          primary_contact: true,
+          can_pickup: true,
+        });
+      }
     }
     localWrite(data);
     return;

@@ -73,8 +73,8 @@ test("cadastra e abre uma ficha aprofundada", async ({ page }) => {
   await page.getByLabel("Estado civil").selectOption("Solteiro(a)");
   await page.getByLabel("CPF").fill("123.456.789-01");
   await page.getByLabel("Possui filhos?").selectOption("Sim");
-  await page.getByLabel("Nome completo do filho 1").fill("Gabriel Cadastro");
-  await page.getByLabel("Data de nascimento do filho 1").fill("10/04/2016");
+  await page.getByLabel("Nome completo do filho 1").fill("Sandra Cadastro");
+  await page.getByLabel("Data de nascimento do filho 1").fill("10/04/1998");
   await page.getByLabel("CPF do filho 1").fill("111.456.789-01");
   await page.getByRole("button", { name: "Adicionar outro filho" }).click();
   await page.getByLabel("Nome completo do filho 2").fill("Helena Cadastro");
@@ -109,7 +109,7 @@ test("cadastra e abre uma ficha aprofundada", async ({ page }) => {
       (person: { full_name: string }) => person.full_name === "Pessoa de Teste",
     );
     const children = workspace.people.filter((person: { full_name: string }) =>
-      ["Gabriel Cadastro", "Helena Cadastro"].includes(person.full_name),
+      ["Sandra Cadastro", "Helena Cadastro"].includes(person.full_name),
     );
     return {
       parent,
@@ -124,7 +124,12 @@ test("cadastra e abre uma ficha aprofundada", async ({ page }) => {
   expect(internalFamily.children[0].address).toEqual(
     internalFamily.parent.address,
   );
-  expect(internalFamily.guardians).toHaveLength(2);
+  expect(
+    internalFamily.children.find(
+      (child: { full_name: string }) => child.full_name === "Sandra Cadastro",
+    ).categories,
+  ).toEqual(["Pré-cadastro"]);
+  expect(internalFamily.guardians).toHaveLength(1);
   await page.getByRole("button", { name: "Ensino", exact: true }).click();
   const consolidation = page.locator(".group-card").filter({
     hasText: "Consolidação Essencial",

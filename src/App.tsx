@@ -495,6 +495,7 @@ function AuthenticatedApp() {
               : []
           }
           onClose={() => setModal(null)}
+          notify={showToast}
           onSave={(person, familyChildren) =>
             persist(
               () => savePersonFamily(workspace, person, familyChildren),
@@ -1759,12 +1760,14 @@ function PersonForm({
   familyChildren,
   onClose,
   onSave,
+  notify,
 }: {
   churchId: string;
   initial?: Person;
   familyChildren: FamilyChildInput[];
   onClose: () => void;
   onSave: (p: Person, children: FamilyChildInput[]) => void;
+  notify: (message: string, type?: "success" | "error") => void;
 }) {
   const [form, setForm] = useState<Person>(
       initial
@@ -1808,7 +1811,11 @@ function PersonForm({
             document_cpf: "",
           })),
     ),
-    [formError, setFormError] = useState("");
+    [, setFormError] = useState("");
+  function showFormError(message: string) {
+    setFormError(message);
+    notify(message, "error");
+  }
   const set = <K extends keyof Person>(key: K, value: Person[K]) =>
       setForm((prev) => ({ ...prev, [key]: value })),
     address = (key: keyof Person["address"], value: string) =>
@@ -1829,16 +1836,16 @@ function PersonForm({
     if (!formElement?.reportValidity()) return;
     if (section === "personal") {
       if (!brazilianDateToIso(form.birth_date)) {
-        setFormError("Informe uma data de nascimento válida em dd/mm/aaaa.");
+        showFormError("Informe uma data de nascimento válida em dd/mm/aaaa.");
         return;
       }
       if (hasChildren === undefined) {
-        setFormError("Informe se a pessoa possui filhos.");
+        showFormError("Informe se a pessoa possui filhos.");
         return;
       }
       const childrenError = hasChildren ? familyChildrenError(children) : "";
       if (childrenError) {
-        setFormError(childrenError);
+        showFormError(childrenError);
         return;
       }
       const familyCpfs = [
@@ -1846,18 +1853,18 @@ function PersonForm({
         ...children.map((child) => child.document_cpf.replace(/\D/g, "")),
       ];
       if (new Set(familyCpfs).size !== familyCpfs.length) {
-        setFormError("Cada pessoa da família precisa ter um CPF diferente.");
+        showFormError("Cada pessoa da família precisa ter um CPF diferente.");
         return;
       }
       if (!form.categories.length) {
-        setFormError("Assinale Membro, Visitante, Adolescente ou Criança.");
+        showFormError("Assinale Membro, Visitante, Adolescente ou Criança.");
         return;
       }
       setSection("consent");
       return;
     }
     if (!form.categories.length) {
-      setFormError("Assinale Membro, Visitante, Adolescente ou Criança.");
+      showFormError("Assinale Membro, Visitante, Adolescente ou Criança.");
       return;
     }
     setSection("consent");
@@ -1875,13 +1882,13 @@ function PersonForm({
           const birthDate = brazilianDateToIso(form.birth_date);
           if (!birthDate) {
             setSection("personal");
-            setFormError("Informe uma data de nascimento válida.");
+            showFormError("Informe uma data de nascimento válida.");
             return;
           }
           const childrenError = hasChildren ? familyChildrenError(children) : "";
           if (childrenError) {
             setSection("personal");
-            setFormError(childrenError);
+            showFormError(childrenError);
             return;
           }
           const preparedChildren = children.map((child) => ({
@@ -1917,7 +1924,6 @@ function PersonForm({
           </button>
         </div>
         <div className="form-scroll">
-          {formError && <div className="form-alert error">{formError}</div>}
           {section === "personal" && (
             <>
               <FormSection title="Identificação">
@@ -2103,9 +2109,9 @@ function PersonForm({
                             }
                           />
                         </div>
-                        {childAge(child.birth_date) !== null && (
+                        {personAge(child.birth_date) !== null && (
                           <small className="child-age">
-                            Idade atual: {childAge(child.birth_date)} anos
+                            Idade atual: {personAge(child.birth_date)} anos
                           </small>
                         )}
                       </div>
@@ -3776,7 +3782,7 @@ function PublicChurchRegistrationPage({ token }: { token: string }) {
       full_name: child.full_name.trim(),
       birth_date: brazilianDateToIso(child.birth_date) ?? "",
       document_cpf: child.document_cpf.replace(/\D/g, ""),
-      valid_child_age: childAge(child.birth_date) !== null,
+      valid_birth_date: personAge(child.birth_date) !== null,
     }));
     const familyCpfs = [
       normalizedParentCpf,
@@ -4088,9 +4094,9 @@ function PublicChurchRegistrationPage({ token }: { token: string }) {
                             }
                           />
                         </div>
-                        {childAge(child.birth_date) !== null && (
+                        {personAge(child.birth_date) !== null && (
                           <small className="child-age">
-                            Idade atual: {childAge(child.birth_date)} anos
+                            Idade atual: {personAge(child.birth_date)} anos
                           </small>
                         )}
                       </div>
@@ -6098,7 +6104,7 @@ function brazilianDateToIso(value?: string) {
     return null;
   return `${year}-${month}-${day}`;
 }
-function childAge(value?: string) {
+function personAge(value?: string) {
   const isoDate = brazilianDateToIso(value);
   if (!isoDate) return null;
   const birthDate = new Date(`${isoDate}T12:00:00`);
@@ -6110,7 +6116,7 @@ function childAge(value?: string) {
       today.getDate() < birthDate.getDate())
   )
     age -= 1;
-  return age >= 0 && age <= 17 ? age : null;
+  return age >= 0 ? age : null;
 }
 function familyChildrenError(
   children: FamilyChildInput[],
@@ -6124,8 +6130,8 @@ function familyChildrenError(
       return `${label}: informe o nome completo.`;
     if (!brazilianDateToIso(child.birth_date))
       return `${label}: informe a data de nascimento em dd/mm/aaaa.`;
-    if (childAge(child.birth_date) === null)
-      return `${label}: a data precisa ser de uma pessoa menor de 18 anos.`;
+    if (personAge(child.birth_date) === null)
+      return `${label}: a data de nascimento não pode ser futura.`;
     if (child.document_cpf.replace(/\D/g, "").length !== 11)
       return `${label}: informe um CPF com 11 números.`;
   }
