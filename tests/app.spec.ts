@@ -87,20 +87,27 @@ test("cadastra e abre uma ficha aprofundada", async ({ page }) => {
   await page.getByLabel("CEP").fill("01000-000");
   await page.getByLabel("Complemento").fill("Casa");
   await page.getByLabel("Cidade").fill("São Paulo");
-  await page.getByLabel("Estado", { exact: true }).fill("SP");
+  await page.getByRole("textbox", { name: /^Estado/ }).fill("SP");
   await page.getByRole("button", { name: /Continuar/ }).click();
   await page.getByLabel("Data de conversão").fill("2020-01-10");
-  await page.getByLabel("Batizado(a)").selectOption("Sim");
+  await page.getByLabel("Data do batismo").fill("2021-02-14");
   await page.locator("label.check-card").filter({ hasText: "Membro" }).click();
-  await page
-    .locator("label.check-card")
-    .filter({ hasText: "Consolidação Essencial" })
-    .click();
   await page.getByRole("button", { name: /Continuar/ }).click();
   await expect(page.getByText("Privacidade por padrão")).toBeVisible();
   await page.locator(".consent-form input").first().check();
   await page.getByRole("button", { name: /Salvar pessoa/ }).click();
   await expect(page.getByText("Pessoa cadastrada.")).toBeVisible();
+  await page.getByRole("button", { name: "Ensino", exact: true }).click();
+  const consolidation = page.locator(".group-card").filter({
+    hasText: "Consolidação Essencial",
+  });
+  await consolidation.getByRole("button", { name: /Gerenciar turma/ }).click();
+  await page
+    .locator("label.check-card")
+    .filter({ hasText: "Pessoa de Teste" })
+    .click();
+  await page.getByRole("button", { name: "Salvar" }).click();
+  await page.getByRole("button", { name: "Pessoas", exact: true }).click();
   await page.getByText("Pessoa de Teste", { exact: true }).click();
   await expect(page.getByText("FICHA DA PESSOA")).toBeVisible();
   await page
@@ -108,7 +115,8 @@ test("cadastra e abre uma ficha aprofundada", async ({ page }) => {
     .click();
   await expect(
     page.getByText("Consolidação Essencial", { exact: true }),
-  ).toBeVisible();
+  ).toHaveCount(2);
+  await expect(page.getByText("Histórico de grupos")).toBeVisible();
 });
 
 test("abre cadastros de ensino, agenda e financeiro", async ({ page }) => {
@@ -276,8 +284,6 @@ test("membro faz pré-cadastro pelo link e já fica vinculado à igreja", async 
   await expect(page.getByLabel("Complemento")).toHaveValue("");
   await page.getByLabel("Número").fill("25");
   await page.getByLabel("Complemento").fill("Casa 2");
-  await page.getByLabel("Data de conversão").fill("2021-05-01");
-  await page.getByLabel("É batizado(a)?").selectOption("true");
   await page
     .getByRole("checkbox", {
       name: /Autorizo o tratamento dos meus dados pessoais/,

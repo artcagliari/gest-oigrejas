@@ -57,6 +57,7 @@ import {
   FinancialAccount,
   FinancialCategory,
   FinanceEntry,
+  GroupMembershipHistory,
   generateKidsAuthorizations,
   getOrCreateChurchRegistrationLink,
   checkInChild,
@@ -345,6 +346,9 @@ function AuthenticatedApp() {
               <PersonDetail
                 person={selectedPerson}
                 groups={workspace.groups}
+                groupHistory={workspace.groupHistory.filter(
+                  (entry) => entry.person_id === selectedPerson.id,
+                )}
                 onBack={() => setSelectedPerson(null)}
                 onEdit={() =>
                   setModal({ type: "person", person: selectedPerson })
@@ -458,7 +462,6 @@ function AuthenticatedApp() {
       {modal?.type === "person" && (
         <PersonForm
           churchId={churchId}
-          groups={workspace.groups}
           initial={modal.person}
           onClose={() => setModal(null)}
           onSave={(person) =>
@@ -1080,7 +1083,7 @@ function EmptyState({
 }) {
   return (
     <section className="empty-state card">
-      <span>
+      <span className="cep-input-row">
         <Icon />
       </span>
       <h2>{title}</h2>
@@ -1410,11 +1413,13 @@ function People({
 function PersonDetail({
   person,
   groups,
+  groupHistory,
   onBack,
   onEdit,
 }: {
   person: Person;
   groups: TeachingGroup[];
+  groupHistory: GroupMembershipHistory[];
   onBack: () => void;
   onEdit: () => void;
 }) {
@@ -1535,9 +1540,9 @@ function PersonDetail({
             ]}
           />
           <InfoCard
-            title="Anotações"
+            title="Informações complementares"
             icon={Pencil}
-            rows={[["Observações", person.notes]]}
+            rows={[["Informações que acha importante", person.notes]]}
           />
         </div>
       )}
@@ -1554,15 +1559,12 @@ function PersonDetail({
                   : undefined,
               ],
               [
-                "Batizado(a)",
-                person.baptized === undefined
-                  ? undefined
-                  : person.baptized
-                    ? "Sim"
-                    : "Não",
+                "Data do batismo",
+                person.baptism_date
+                  ? formatDate(person.baptism_date)
+                  : undefined,
               ],
               ["Categorias", person.categories.join(", ")],
-              ["Cargos e funções", person.ministry_roles.join(", ")],
             ]}
           />
           <section className="card info-card">
@@ -1583,6 +1585,30 @@ function PersonDetail({
             ))}
             {!personGroups.length && (
               <p className="inline-empty">Nenhum grupo vinculado.</p>
+            )}
+          </section>
+          <section className="card info-card">
+            <h2>
+              <ClipboardCheck />
+              Histórico de grupos
+            </h2>
+            {groupHistory.map((entry) => (
+              <div className="simple-row" key={entry.id}>
+                <span className="metric-icon">
+                  {entry.action === "joined" ? <Plus /> : <X />}
+                </span>
+                <span>
+                  <strong>{entry.group_name}</strong>
+                  <small>
+                    {entry.action === "joined" ? "Entrada" : "Saída"}
+                    {entry.role_title ? ` • ${entry.role_title}` : ""} •{" "}
+                    {dateTime(entry.occurred_at)}
+                  </small>
+                </span>
+              </div>
+            ))}
+            {!groupHistory.length && (
+              <p className="inline-empty">Nenhuma movimentação registrada.</p>
             )}
           </section>
         </div>
@@ -1648,13 +1674,11 @@ const consentLabels: [keyof Person["consent"], string][] = [
 
 function PersonForm({
   churchId,
-  groups,
   initial,
   onClose,
   onSave,
 }: {
   churchId: string;
-  groups: TeachingGroup[];
   initial?: Person;
   onClose: () => void;
   onSave: (p: Person) => void;
@@ -1694,7 +1718,7 @@ function PersonForm({
         ...prev,
         address: { ...prev.address, [key]: value },
       })),
-    toggleList = (key: "categories" | "ministry_roles", value: string) =>
+    toggleList = (key: "categories", value: string) =>
       set(
         key,
         form[key].includes(value)
@@ -1723,14 +1747,14 @@ function PersonForm({
         return;
       }
       if (!form.categories.length) {
-        setFormError("Assinale Membro, Visitante ou Criança.");
+        setFormError("Assinale Membro, Visitante, Adolescente ou Criança.");
         return;
       }
       setSection("consent");
       return;
     }
     if (!form.categories.length) {
-      setFormError("Assinale Membro, Visitante ou Criança.");
+      setFormError("Assinale Membro, Visitante, Adolescente ou Criança.");
       return;
     }
     setSection("consent");
@@ -2006,86 +2030,39 @@ function PersonForm({
                   <Field
                     label="Data de conversão"
                     type="date"
-                    required
                     value={form.conversion_date}
                     onChange={(v) => set("conversion_date", v)}
                   />
-                  <SelectField
-                    label="Batizado(a)"
-                    required
-                    value={
-                      form.baptized === undefined
-                        ? ""
-                        : form.baptized
-                          ? "Sim"
-                          : "Não"
-                    }
-                    options={["Sim", "Não"]}
-                    onChange={(v) => set("baptized", v === "Sim")}
+                  <Field
+                    label="Data do batismo"
+                    type="date"
+                    value={form.baptism_date}
+                    onChange={(v) => {
+                      set("baptism_date", v);
+                      set("baptized", v ? true : undefined);
+                    }}
                   />
                 </div>
               </FormSection>
-              <FormSection title="Categorias">
+              <FormSection title="Categorias" required>
                 <div className="check-grid">
-                  {["Criança", "Visitante", "Membro"].map((v) => (
-                    <CheckCard
-                      key={v}
-                      label={v}
-                      checked={form.categories.includes(v)}
-                      onChange={() => toggleList("categories", v)}
-                    />
-                  ))}
+                  {["Criança", "Adolescente", "Visitante", "Membro"].map(
+                    (v) => (
+                      <CheckCard
+                        key={v}
+                        label={v}
+                        checked={form.categories.includes(v)}
+                        onChange={() => toggleList("categories", v)}
+                      />
+                    ),
+                  )}
                 </div>
-              </FormSection>
-              <FormSection title="Cargos ou funções">
-                <div className="check-grid">
-                  {[
-                    "Liderança",
-                    "Louvor",
-                    "Ensino",
-                    "Diaconia",
-                    "Mídia",
-                    "Infantil",
-                    "Intercessão",
-                    "Tesouraria",
-                  ].map((v) => (
-                    <CheckCard
-                      key={v}
-                      label={v}
-                      checked={form.ministry_roles.includes(v)}
-                      onChange={() => toggleList("ministry_roles", v)}
-                    />
-                  ))}
-                </div>
-              </FormSection>
-              <FormSection title="Grupos de ensino">
-                <div className="check-grid">
-                  {groups.map((group) => (
-                    <CheckCard
-                      key={group.id}
-                      label={group.name}
-                      checked={form.group_ids.includes(group.id)}
-                      onChange={() =>
-                        set(
-                          "group_ids",
-                          form.group_ids.includes(group.id)
-                            ? form.group_ids.filter((id) => id !== group.id)
-                            : [...form.group_ids, group.id],
-                        )
-                      }
-                    />
-                  ))}
-                </div>
-                {!groups.length && (
-                  <p className="inline-empty">
-                    Cadastre um grupo no módulo Ensino para criar vínculos.
-                  </p>
-                )}
               </FormSection>
               <label className="standalone-label">
-                Anotações pastorais
+                Informações complementares
                 <textarea
                   rows={5}
+                  placeholder="Informações que acha importante"
                   value={form.notes ?? ""}
                   onChange={(e) => set("notes", e.target.value)}
                 />
@@ -3541,7 +3518,7 @@ function PublicChurchRegistrationPage({ token }: { token: string }) {
       phone_secondary: "",
       address: { country: "Brasil" },
       conversion_date: "",
-      baptized: undefined,
+      baptism_date: "",
       categories: [],
       children_names: [],
       messaging_consent: false,
@@ -3581,7 +3558,7 @@ function PublicChurchRegistrationPage({ token }: { token: string }) {
       return;
     }
     if (!form.categories.length) {
-      setError("Assinale Membro, Visitante ou Criança.");
+      setError("Assinale Membro, Visitante, Adolescente ou Criança.");
       return;
     }
     if (hasChildren === undefined) {
@@ -3754,26 +3731,28 @@ function PublicChurchRegistrationPage({ token }: { token: string }) {
                 </div>
               </FormSection>
 
-              <FormSection title="Vínculo com a igreja">
+              <FormSection title="Vínculo com a igreja" required>
                 <p className="field-help">Assinale pelo menos uma opção.</p>
                 <div className="check-grid public-category-grid">
-                  {["Membro", "Visitante", "Criança"].map((category) => (
-                    <CheckCard
-                      key={category}
-                      label={category}
-                      checked={form.categories.includes(category)}
-                      onChange={() =>
-                        setForm({
-                          ...form,
-                          categories: form.categories.includes(category)
-                            ? form.categories.filter(
-                                (item) => item !== category,
-                              )
-                            : [...form.categories, category],
-                        })
-                      }
-                    />
-                  ))}
+                  {["Membro", "Visitante", "Adolescente", "Criança"].map(
+                    (category) => (
+                      <CheckCard
+                        key={category}
+                        label={category}
+                        checked={form.categories.includes(category)}
+                        onChange={() =>
+                          setForm({
+                            ...form,
+                            categories: form.categories.includes(category)
+                              ? form.categories.filter(
+                                  (item) => item !== category,
+                                )
+                              : [...form.categories, category],
+                          })
+                        }
+                      />
+                    ),
+                  )}
                 </div>
               </FormSection>
 
@@ -3948,25 +3927,17 @@ function PublicChurchRegistrationPage({ token }: { token: string }) {
                   <Field
                     label="Data de conversão"
                     type="date"
-                    required
                     value={form.conversion_date}
                     onChange={(conversion_date) =>
                       setForm({ ...form, conversion_date })
                     }
                   />
-                  <SelectField
-                    label="É batizado(a)?"
-                    required
-                    value={
-                      form.baptized === undefined ? "" : String(form.baptized)
-                    }
-                    options={["true|Sim", "false|Não"]}
-                    raw
-                    onChange={(value) =>
-                      setForm({
-                        ...form,
-                        baptized: value === "" ? undefined : value === "true",
-                      })
+                  <Field
+                    label="Data do batismo"
+                    type="date"
+                    value={form.baptism_date}
+                    onChange={(baptism_date) =>
+                      setForm({ ...form, baptism_date })
                     }
                   />
                 </div>
@@ -3989,6 +3960,10 @@ function PublicChurchRegistrationPage({ token }: { token: string }) {
                     <span>
                       <strong>
                         Autorizo o tratamento dos meus dados pessoais.
+                        <b className="required-mark" aria-hidden="true">
+                          {" "}
+                          *
+                        </b>
                       </strong>
                       <small>
                         Necessário para manter minha ficha e realizar o cuidado
@@ -5563,13 +5538,23 @@ function ModalActions({ onClose }: { onClose: () => void }) {
 function FormSection({
   title,
   children,
+  required,
 }: {
   title: string;
   children: React.ReactNode;
+  required?: boolean;
 }) {
   return (
     <fieldset className="form-section">
-      <legend>{title}</legend>
+      <legend>
+        {title}
+        {required && (
+          <b className="required-mark" aria-hidden="true">
+            {" "}
+            *
+          </b>
+        )}
+      </legend>
       {children}
     </fieldset>
   );
@@ -5628,7 +5613,15 @@ function CepField({
   }
   return (
     <label className="cep-field">
-      CEP
+      <span className="field-caption">
+        CEP
+        {required && (
+          <b className="required-mark" aria-hidden="true">
+            {" "}
+            *
+          </b>
+        )}
+      </span>
       <span>
         <input
           required={required}
@@ -5674,7 +5667,15 @@ function Field({
 }) {
   return (
     <label className={wide ? "full" : ""}>
-      {label}
+      <span className="field-caption">
+        {label}
+        {required && (
+          <b className="required-mark" aria-hidden="true">
+            {" "}
+            *
+          </b>
+        )}
+      </span>
       <input
         type={type}
         required={required}
@@ -5703,7 +5704,15 @@ function SelectField({
 }) {
   return (
     <label>
-      {label}
+      <span className="field-caption">
+        {label}
+        {required && (
+          <b className="required-mark" aria-hidden="true">
+            {" "}
+            *
+          </b>
+        )}
+      </span>
       <select
         required={required}
         value={value ?? ""}

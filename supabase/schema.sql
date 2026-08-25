@@ -73,6 +73,7 @@ create table public.people (
   children_names text[] not null default '{}',
   conversion_date date,
   baptized boolean,
+  baptism_date date,
   document_cpf text,
   email text,
   phone_primary text,

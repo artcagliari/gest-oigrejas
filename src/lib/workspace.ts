@@ -36,6 +36,7 @@ export type Person = {
   children_names?: string[];
   conversion_date?: string;
   baptized?: boolean;
+  baptism_date?: string;
   document_cpf?: string;
   email?: string;
   phone_primary?: string;
@@ -199,6 +200,17 @@ export type TeachingAttendance = {
   notes?: string;
 };
 
+export type GroupMembershipHistory = {
+  id: string;
+  church_id: string;
+  person_id: string;
+  group_id: string;
+  group_name: string;
+  role_title?: string;
+  action: "joined" | "removed";
+  occurred_at: string;
+};
+
 export type PublicChildAuthorization = {
   authorization_id: string;
   church_name: string;
@@ -234,7 +246,7 @@ export type SelfRegistrationInput = {
   phone_secondary?: string;
   address: Person["address"];
   conversion_date?: string;
-  baptized?: boolean;
+  baptism_date?: string;
   categories: string[];
   children_names: string[];
   messaging_consent: boolean;
@@ -286,6 +298,7 @@ export type WorkspaceData = {
   departmentMembers: DepartmentMember[];
   teachingMeetings: TeachingMeeting[];
   teachingAttendance: TeachingAttendance[];
+  groupHistory: GroupMembershipHistory[];
 };
 
 export type TeamMember = {
@@ -610,6 +623,18 @@ const demoData: WorkspaceData = {
       status: "present",
     },
   ],
+  groupHistory: [
+    {
+      id: "gh1",
+      church_id: "demo-church",
+      person_id: "p1",
+      group_id: "g1",
+      group_name: "Consolidação Essencial",
+      role_title: "Líder",
+      action: "joined",
+      occurred_at: "2026-01-10T10:00:00-03:00",
+    },
+  ],
 };
 
 const storageKey = "comunhao-workspace-v2";
@@ -641,6 +666,8 @@ function localRead(): WorkspaceData {
       teachingAttendance:
         parsed.teachingAttendance ??
         structuredClone(demoData.teachingAttendance),
+      groupHistory:
+        parsed.groupHistory ?? structuredClone(demoData.groupHistory),
     };
   } catch {
     return structuredClone(demoData);
@@ -737,6 +764,7 @@ export async function loadWorkspace(
       departmentMembers: [],
       teachingMeetings: [],
       teachingAttendance: [],
+      groupHistory: [],
     };
   const [
     churchesRes,
@@ -755,6 +783,7 @@ export async function loadWorkspace(
     departmentMembersRes,
     teachingMeetingsRes,
     teachingAttendanceRes,
+    groupHistoryRes,
   ] = await Promise.all([
     churchQuery,
     supabase
@@ -833,6 +862,11 @@ export async function loadWorkspace(
       .from("teaching_attendance")
       .select("*")
       .eq("church_id", churchId ?? ""),
+    supabase
+      .from("person_group_history")
+      .select("*")
+      .eq("church_id", churchId ?? "")
+      .order("occurred_at", { ascending: false }),
   ]);
   const error =
     churchesRes.error ||
@@ -850,7 +884,8 @@ export async function loadWorkspace(
     departmentRolesRes.error ||
     departmentMembersRes.error ||
     teachingMeetingsRes.error ||
-    teachingAttendanceRes.error;
+    teachingAttendanceRes.error ||
+    groupHistoryRes.error;
   if (error) throw error;
   return {
     churches: (churchesRes.data ?? []).map((c) => ({
@@ -914,6 +949,7 @@ export async function loadWorkspace(
     teachingMeetings: (teachingMeetingsRes.data ?? []) as TeachingMeeting[],
     teachingAttendance: (teachingAttendanceRes.data ??
       []) as TeachingAttendance[],
+    groupHistory: (groupHistoryRes.data ?? []) as GroupMembershipHistory[],
   };
 }
 
@@ -966,6 +1002,30 @@ export async function saveGroup(
   group: TeachingGroup,
 ): Promise<WorkspaceData> {
   if (isDemoMode || !supabase) {
+    const selectedMembers = group.member_ids ?? [],
+      historyChanges: GroupMembershipHistory[] = data.people.flatMap(
+        (person) => {
+          const wasMember = person.group_ids.includes(group.id),
+            isMember = selectedMembers.includes(person.id);
+          if (wasMember === isMember) return [];
+          return [
+            {
+              id: newId(),
+              church_id: group.church_id,
+              person_id: person.id,
+              group_id: group.id,
+              group_name: group.name,
+              role_title: isMember
+                ? person.id === group.leader_id
+                  ? "Líder"
+                  : (group.member_roles?.[person.id] ?? "Aluno(a)")
+                : person.group_roles?.[group.id],
+              action: isMember ? "joined" : "removed",
+              occurred_at: new Date().toISOString(),
+            } satisfies GroupMembershipHistory,
+          ];
+        },
+      );
     const next = {
       ...data,
       groups: [
@@ -989,6 +1049,7 @@ export async function saveGroup(
             : {}),
         },
       })),
+      groupHistory: [...historyChanges, ...data.groupHistory],
     };
     localWrite(next);
     return next;
@@ -1518,7 +1579,8 @@ export async function submitPublicChurchRegistration(
       phone_secondary: input.phone_secondary?.trim() || undefined,
       address: input.address,
       conversion_date: input.conversion_date || undefined,
-      baptized: input.baptized,
+      baptism_date: input.baptism_date || undefined,
+      baptized: input.baptism_date ? true : undefined,
       categories: [...new Set(["Pré-cadastro", ...input.categories])],
       ministry_roles: [],
       group_ids: [],
@@ -1738,4 +1800,5 @@ export const emptyWorkspace: WorkspaceData = {
   departmentMembers: [],
   teachingMeetings: [],
   teachingAttendance: [],
+  groupHistory: [],
 };
