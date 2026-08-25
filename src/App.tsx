@@ -889,12 +889,20 @@ function translateAuthError(message: string) {
 }
 
 function friendlyErrorMessage(reason: unknown, fallback: string) {
+  const errorRecord =
+    reason && typeof reason === "object"
+      ? (reason as Record<string, unknown>)
+      : null;
   const raw =
     reason instanceof Error
       ? reason.message
       : typeof reason === "string"
         ? reason
-        : "";
+        : typeof errorRecord?.message === "string"
+          ? errorRecord.message
+          : typeof errorRecord?.details === "string"
+            ? errorRecord.details
+            : "";
   const message = raw.trim();
   if (!message) return fallback;
   const lower = message.toLowerCase();
@@ -923,6 +931,13 @@ function friendlyErrorMessage(reason: unknown, fallback: string) {
     lower.includes("23505")
   )
     return "Já existe um cadastro com essas informações.";
+  if (lower.includes("invalid input syntax for type date"))
+    return "Revise as datas informadas. Use o formato dia/mês/ano.";
+  if (
+    lower.includes("invalid refresh token") ||
+    lower.includes("refresh token not found")
+  )
+    return "Sua sessão expirou. Entre novamente para continuar.";
   if (lower.includes("function") && lower.includes("not"))
     return "Uma função do Supabase ainda não está publicada. Publique as funções e tente novamente.";
   const technicalTerms = [
@@ -1897,7 +1912,9 @@ function PersonForm({
             showFormError("Informe uma data de nascimento válida.");
             return;
           }
-          const childrenError = hasChildren ? familyChildrenError(children) : "";
+          const childrenError = hasChildren
+            ? familyChildrenError(children)
+            : "";
           if (childrenError) {
             setSection("personal");
             showFormError(childrenError);
@@ -3575,10 +3592,7 @@ function PublicAuthorizationPage({ token }: { token: string }) {
       })
       .catch((reason) =>
         setError(
-          friendlyErrorMessage(
-            reason,
-            "Não foi possível abrir a autorização.",
-          ),
+          friendlyErrorMessage(reason, "Não foi possível abrir a autorização."),
         ),
       )
       .finally(() => setLoading(false));
@@ -3590,9 +3604,7 @@ function PublicAuthorizationPage({ token }: { token: string }) {
       await respondPublicChildAuthorization(token, form);
       setDone(true);
     } catch (reason) {
-      setError(
-        friendlyErrorMessage(reason, "Não foi possível registrar."),
-      );
+      setError(friendlyErrorMessage(reason, "Não foi possível registrar."));
     } finally {
       setLoading(false);
     }
@@ -3745,10 +3757,7 @@ function PublicChurchRegistrationPage({ token }: { token: string }) {
       })
       .catch((reason) =>
         setError(
-          friendlyErrorMessage(
-            reason,
-            "Não foi possível abrir o cadastro.",
-          ),
+          friendlyErrorMessage(reason, "Não foi possível abrir o cadastro."),
         ),
       )
       .finally(() => setLoading(false));

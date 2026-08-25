@@ -986,8 +986,33 @@ export async function savePerson(
     localWrite(next);
     return next;
   }
-  const { consent, group_ids, group_roles, ...record } = person;
-  void group_roles;
+  // Envie somente colunas reais da tabela. O objeto usado pela tela também
+  // contém consentimentos e vínculos calculados, que não pertencem a people.
+  // Datas opcionais vazias precisam virar null: o Postgres rejeita "" em date.
+  const record = {
+    id: person.id,
+    church_id: person.church_id,
+    full_name: person.full_name.trim(),
+    birth_date: person.birth_date || null,
+    gender: person.gender || null,
+    education: person.education || null,
+    marital_status: person.marital_status || null,
+    spouse_name: person.spouse_name?.trim() || null,
+    children_names: person.children_names ?? [],
+    conversion_date: person.conversion_date || null,
+    baptized: person.baptized ?? null,
+    baptism_date: person.baptism_date || null,
+    document_cpf: person.document_cpf?.trim() || null,
+    email: person.email?.trim().toLowerCase() || null,
+    phone_primary: person.phone_primary?.trim() || null,
+    phone_secondary: person.phone_secondary?.trim() || null,
+    address: person.address ?? {},
+    categories: person.categories ?? [],
+    ministry_roles: person.ministry_roles ?? [],
+    notes: person.notes?.trim() || null,
+    active: person.active,
+    auth_user_id: person.auth_user_id || null,
+  };
   const { data: saved, error } = await supabase
     .from("people")
     .upsert(record)
@@ -997,10 +1022,12 @@ export async function savePerson(
   const { error: consentError } = await supabase
     .from("people_consents")
     .upsert({
-      ...consent,
+      ...person.consent,
       person_id: saved.id,
       church_id: saved.church_id,
-      consented_at: consent.data_processing ? new Date().toISOString() : null,
+      consented_at: person.consent.data_processing
+        ? new Date().toISOString()
+        : null,
     });
   if (consentError) throw consentError;
   const { error: clearGroupsError } = await supabase
@@ -1008,10 +1035,16 @@ export async function savePerson(
     .delete()
     .eq("person_id", saved.id);
   if (clearGroupsError) throw clearGroupsError;
-  if (group_ids.length) {
+  if (person.group_ids.length) {
     const { error: groupError } = await supabase
       .from("teaching_group_members")
-      .insert(group_ids.map((group_id) => ({ group_id, person_id: saved.id })));
+      .insert(
+        person.group_ids.map((group_id) => ({
+          group_id,
+          person_id: saved.id,
+          role_title: person.group_roles?.[group_id] || "Aluno(a)",
+        })),
+      );
     if (groupError) throw groupError;
   }
   return loadWorkspace(person.church_id, false);
@@ -1032,8 +1065,7 @@ export async function savePersonFamily(
     const childId = child.id ?? newId();
     const childAge = ageFromIsoDate(child.birth_date);
     const childCategories = childAge < 18 ? ["Criança"] : ["Pré-cadastro"];
-    if (childAge >= 12 && childAge < 18)
-      childCategories.push("Adolescente");
+    if (childAge >= 12 && childAge < 18) childCategories.push("Adolescente");
     const existingPerson = next.people.find((item) => item.id === childId);
     const childPerson: Person = {
       ...(existingPerson ?? {
@@ -1709,8 +1741,7 @@ export async function submitPublicChurchRegistration(
       const childAge = ageFromIsoDate(child.birth_date);
       const childCategories =
         childAge < 18 ? ["Pré-cadastro", "Criança"] : ["Pré-cadastro"];
-      if (childAge >= 12 && childAge < 18)
-        childCategories.push("Adolescente");
+      if (childAge >= 12 && childAge < 18) childCategories.push("Adolescente");
       data.people.push({
         id: childId,
         church_id: "demo-church",
