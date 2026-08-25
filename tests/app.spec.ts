@@ -74,8 +74,12 @@ test("cadastra e abre uma ficha aprofundada", async ({ page }) => {
   await page.getByLabel("CPF").fill("123.456.789-01");
   await page.getByLabel("Possui filhos?").selectOption("Sim");
   await page.getByLabel("Nome completo do filho 1").fill("Gabriel Cadastro");
+  await page.getByLabel("Data de nascimento do filho 1").fill("10/04/2016");
+  await page.getByLabel("CPF do filho 1").fill("111.456.789-01");
   await page.getByRole("button", { name: "Adicionar outro filho" }).click();
   await page.getByLabel("Nome completo do filho 2").fill("Helena Cadastro");
+  await page.getByLabel("Data de nascimento do filho 2").fill("22/09/2012");
+  await page.getByLabel("CPF do filho 2").fill("222.456.789-02");
   await page.getByLabel("Telefone WhatsApp").fill("11999990000");
   await expect(page.getByLabel("Telefone WhatsApp")).toHaveValue(
     "(11) 99999-0000",
@@ -97,6 +101,30 @@ test("cadastra e abre uma ficha aprofundada", async ({ page }) => {
   await page.locator(".consent-form input").first().check();
   await page.getByRole("button", { name: /Salvar pessoa/ }).click();
   await expect(page.getByText("Pessoa cadastrada.")).toBeVisible();
+  const internalFamily = await page.evaluate(() => {
+    const workspace = JSON.parse(
+      localStorage.getItem("comunhao-workspace-v2") ?? "{}",
+    );
+    const parent = workspace.people.find(
+      (person: { full_name: string }) => person.full_name === "Pessoa de Teste",
+    );
+    const children = workspace.people.filter((person: { full_name: string }) =>
+      ["Gabriel Cadastro", "Helena Cadastro"].includes(person.full_name),
+    );
+    return {
+      parent,
+      children,
+      guardians: workspace.guardians.filter(
+        (guardian: { guardian_person_id: string }) =>
+          guardian.guardian_person_id === parent.id,
+      ),
+    };
+  });
+  expect(internalFamily.children).toHaveLength(2);
+  expect(internalFamily.children[0].address).toEqual(
+    internalFamily.parent.address,
+  );
+  expect(internalFamily.guardians).toHaveLength(2);
   await page.getByRole("button", { name: "Ensino", exact: true }).click();
   const consolidation = page.locator(".group-card").filter({
     hasText: "Consolidação Essencial",

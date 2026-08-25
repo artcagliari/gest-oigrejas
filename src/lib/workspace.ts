@@ -61,6 +61,13 @@ export type Person = {
   consent: Consent;
 };
 
+export type FamilyChildInput = {
+  id?: string;
+  full_name: string;
+  birth_date: string;
+  document_cpf: string;
+};
+
 export type TeachingGroup = {
   id: string;
   church_id: string;
@@ -248,11 +255,7 @@ export type SelfRegistrationInput = {
   conversion_date?: string;
   baptism_date?: string;
   categories: string[];
-  children: {
-    full_name: string;
-    birth_date: string;
-    document_cpf: string;
-  }[];
+  children: FamilyChildInput[];
   messaging_consent: boolean;
   data_processing_consent: boolean;
 };
@@ -1011,6 +1014,72 @@ export async function savePerson(
     if (groupError) throw groupError;
   }
   return loadWorkspace(person.church_id, false);
+}
+
+export async function savePersonFamily(
+  data: WorkspaceData,
+  person: Person,
+  familyChildren: FamilyChildInput[],
+): Promise<WorkspaceData> {
+  const parent: Person = {
+    ...person,
+    children_names: familyChildren.map((child) => child.full_name.trim()),
+  };
+  let next = await savePerson(data, parent);
+
+  for (const child of familyChildren) {
+    const childId = child.id ?? newId();
+    const childCategories = ["Criança"];
+    if (ageFromIsoDate(child.birth_date) >= 12)
+      childCategories.push("Adolescente");
+    const existingPerson = next.people.find((item) => item.id === childId);
+    const childPerson: Person = {
+      ...(existingPerson ?? {
+        id: childId,
+        church_id: parent.church_id,
+        ministry_roles: [],
+        group_ids: [],
+        active: true,
+        consent: {
+          ...consentOff,
+          data_processing: parent.consent.data_processing,
+        },
+      }),
+      full_name: child.full_name.trim(),
+      birth_date: child.birth_date,
+      document_cpf: child.document_cpf.trim(),
+      address: structuredClone(parent.address),
+      categories: childCategories,
+    };
+    const existingProfile = next.children.find(
+      (profile) => profile.person_id === childId,
+    );
+    next = await saveChild(
+      next,
+      childPerson,
+      {
+        ...(existingProfile ?? {
+          person_id: childId,
+          church_id: parent.church_id,
+          authorized_pickup_people: [],
+          pickup_code_required: true,
+          active: true,
+        }),
+        emergency_contact_name: parent.full_name,
+        emergency_contact_phone: parent.phone_primary,
+        authorized_pickup_people: [
+          {
+            name: parent.full_name,
+            document: parent.document_cpf,
+          },
+        ],
+      },
+      parent.id,
+      "Pai, mãe ou responsável",
+    );
+  }
+
+  return next;
 }
 
 export async function saveGroup(

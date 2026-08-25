@@ -57,6 +57,7 @@ import {
   FinancialAccount,
   FinancialCategory,
   FinanceEntry,
+  FamilyChildInput,
   GroupMembershipHistory,
   generateKidsAuthorizations,
   getOrCreateChurchRegistrationLink,
@@ -82,7 +83,7 @@ import {
   saveFinancialAccount,
   saveFinancialCategory,
   saveGroup,
-  savePerson,
+  savePersonFamily,
   saveTeachingMeeting,
   saveTransaction,
   respondPublicChildAuthorization,
@@ -463,10 +464,31 @@ function AuthenticatedApp() {
         <PersonForm
           churchId={churchId}
           initial={modal.person}
+          familyChildren={
+            modal.person
+              ? workspace.guardians
+                  .filter(
+                    (guardian) =>
+                      guardian.guardian_person_id === modal.person?.id,
+                  )
+                  .map((guardian) =>
+                    workspace.people.find(
+                      (person) => person.id === guardian.child_id,
+                    ),
+                  )
+                  .filter((person): person is Person => Boolean(person))
+                  .map((person) => ({
+                    id: person.id,
+                    full_name: person.full_name,
+                    birth_date: person.birth_date ?? "",
+                    document_cpf: person.document_cpf ?? "",
+                  }))
+              : []
+          }
           onClose={() => setModal(null)}
-          onSave={(person) =>
+          onSave={(person, familyChildren) =>
             persist(
-              () => savePerson(workspace, person),
+              () => savePersonFamily(workspace, person, familyChildren),
               modal.person ? "Cadastro atualizado." : "Pessoa cadastrada.",
             )
           }
@@ -1675,13 +1697,15 @@ const consentLabels: [keyof Person["consent"], string][] = [
 function PersonForm({
   churchId,
   initial,
+  familyChildren,
   onClose,
   onSave,
 }: {
   churchId: string;
   initial?: Person;
+  familyChildren: FamilyChildInput[];
   onClose: () => void;
-  onSave: (p: Person) => void;
+  onSave: (p: Person, children: FamilyChildInput[]) => void;
 }) {
   const [form, setForm] = useState<Person>(
       initial
@@ -1708,7 +1732,22 @@ function PersonForm({
       "personal",
     ),
     [hasChildren, setHasChildren] = useState<boolean | undefined>(
-      initial ? Boolean(initial.children_names?.length) : undefined,
+      initial
+        ? Boolean(initial.children_names?.length || familyChildren.length)
+        : undefined,
+    ),
+    [children, setChildren] = useState<FamilyChildInput[]>(
+      familyChildren.length
+        ? familyChildren.map((child) => ({
+            ...child,
+            birth_date: toBrazilianDate(child.birth_date),
+            document_cpf: maskCpf(child.document_cpf),
+          }))
+        : (initial?.children_names ?? []).map((full_name) => ({
+            full_name,
+            birth_date: "",
+            document_cpf: "",
+          })),
     ),
     [formError, setFormError] = useState("");
   const set = <K extends keyof Person>(key: K, value: Person[K]) =>
@@ -1740,10 +1779,25 @@ function PersonForm({
       }
       if (
         hasChildren &&
-        (!form.children_names?.length ||
-          form.children_names.some((name) => !name.trim()))
+        (!children.length ||
+          children.some(
+            (child) =>
+              child.full_name.trim().length < 3 ||
+              childAge(child.birth_date) === null ||
+              child.document_cpf.replace(/\D/g, "").length !== 11,
+          ))
       ) {
-        setFormError("Preencha o nome de todos os filhos adicionados.");
+        setFormError(
+          "Preencha nome completo, nascimento de menor de 18 anos e CPF de cada filho.",
+        );
+        return;
+      }
+      const familyCpfs = [
+        form.document_cpf?.replace(/\D/g, "") ?? "",
+        ...children.map((child) => child.document_cpf.replace(/\D/g, "")),
+      ];
+      if (new Set(familyCpfs).size !== familyCpfs.length) {
+        setFormError("Cada pessoa da família precisa ter um CPF diferente.");
         return;
       }
       if (!form.categories.length) {
@@ -1775,7 +1829,20 @@ function PersonForm({
             setFormError("Informe uma data de nascimento válida.");
             return;
           }
-          onSave({ ...form, birth_date: birthDate });
+          const preparedChildren = children.map((child) => ({
+            ...child,
+            full_name: child.full_name.trim(),
+            birth_date: brazilianDateToIso(child.birth_date) ?? "",
+            document_cpf: child.document_cpf.replace(/\D/g, ""),
+          }));
+          onSave(
+            {
+              ...form,
+              birth_date: birthDate,
+              children_names: preparedChildren.map((child) => child.full_name),
+            },
+            preparedChildren,
+          );
         }}
       >
         <div className="form-tabs">
@@ -1864,7 +1931,7 @@ function PersonForm({
                     label="CPF"
                     required
                     value={form.document_cpf}
-                    onChange={(v) => set("document_cpf", v)}
+                    onChange={(v) => set("document_cpf", maskCpf(v))}
                   />
                 </div>
               </FormSection>
@@ -1884,44 +1951,107 @@ function PersonForm({
                     onChange={(value) => {
                       const next = value === "Sim";
                       setHasChildren(value ? next : undefined);
-                      set("children_names", next ? [""] : []);
+                      setChildren(
+                        next
+                          ? children.length
+                            ? children
+                            : [
+                                {
+                                  full_name: "",
+                                  birth_date: "",
+                                  document_cpf: "",
+                                },
+                              ]
+                          : [],
+                      );
                     }}
                   />
                 </div>
                 {hasChildren && (
                   <div className="children-name-list">
-                    {(form.children_names ?? []).map((name, index) => (
-                      <div key={index}>
-                        <Field
-                          label={`Nome completo do filho ${index + 1}`}
-                          required
-                          value={name}
-                          onChange={(value) =>
-                            set(
-                              "children_names",
-                              (form.children_names ?? []).map(
-                                (current, itemIndex) =>
-                                  itemIndex === index ? value : current,
-                              ),
-                            )
-                          }
-                        />
-                        {(form.children_names?.length ?? 0) > 1 && (
-                          <button
-                            type="button"
-                            className="icon-only danger"
-                            aria-label={`Remover filho ${index + 1}`}
-                            onClick={() =>
-                              set(
-                                "children_names",
-                                (form.children_names ?? []).filter(
-                                  (_, itemIndex) => itemIndex !== index,
+                    {children.map((child, index) => (
+                      <div
+                        className="family-child-card"
+                        key={child.id ?? index}
+                      >
+                        <div className="family-child-heading">
+                          <strong>Filho(a) {index + 1}</strong>
+                          {children.length > 1 && (
+                            <button
+                              type="button"
+                              className="icon-only danger"
+                              aria-label={`Remover filho ${index + 1}`}
+                              onClick={() =>
+                                setChildren(
+                                  children.filter(
+                                    (_, itemIndex) => itemIndex !== index,
+                                  ),
+                                )
+                              }
+                            >
+                              <Trash2 />
+                            </button>
+                          )}
+                        </div>
+                        <div className="form-grid">
+                          <Field
+                            label={`Nome completo do filho ${index + 1}`}
+                            required
+                            wide
+                            value={child.full_name}
+                            onChange={(full_name) =>
+                              setChildren(
+                                children.map((current, itemIndex) =>
+                                  itemIndex === index
+                                    ? { ...current, full_name }
+                                    : current,
                                 ),
                               )
                             }
-                          >
-                            <Trash2 />
-                          </button>
+                          />
+                          <Field
+                            label={`Data de nascimento do filho ${index + 1}`}
+                            required
+                            placeholder="dd/mm/aaaa"
+                            inputMode="numeric"
+                            value={child.birth_date}
+                            onChange={(birth_date) =>
+                              setChildren(
+                                children.map((current, itemIndex) =>
+                                  itemIndex === index
+                                    ? {
+                                        ...current,
+                                        birth_date:
+                                          maskBrazilianDate(birth_date),
+                                      }
+                                    : current,
+                                ),
+                              )
+                            }
+                          />
+                          <Field
+                            label={`CPF do filho ${index + 1}`}
+                            required
+                            inputMode="numeric"
+                            value={child.document_cpf}
+                            onChange={(document_cpf) =>
+                              setChildren(
+                                children.map((current, itemIndex) =>
+                                  itemIndex === index
+                                    ? {
+                                        ...current,
+                                        document_cpf: maskCpf(document_cpf),
+                                      }
+                                    : current,
+                                ),
+                              )
+                            }
+                          />
+                        </div>
+                        {childAge(child.birth_date) !== null && (
+                          <small className="child-age">
+                            Idade atual: {childAge(child.birth_date)} anos
+                          </small>
                         )}
                       </div>
                     ))}
@@ -1929,9 +2059,13 @@ function PersonForm({
                       type="button"
                       className="secondary add-child-name"
                       onClick={() =>
-                        set("children_names", [
-                          ...(form.children_names ?? []),
-                          "",
+                        setChildren([
+                          ...children,
+                          {
+                            full_name: "",
+                            birth_date: "",
+                            document_cpf: "",
+                          },
                         ])
                       }
                     >
