@@ -2553,7 +2553,7 @@ function Kids({
                   className="secondary wide child-print-consent"
                   onClick={() => printGeneralChildConsent(child, data)}
                 >
-                  <Printer /> Gerar autorização impressa
+                  <Printer /> Gerar autorização do culto de hoje
                 </button>
               </article>
             );
@@ -2803,6 +2803,17 @@ function printGeneralChildConsent(profile: ChildProfile, data: WorkspaceData) {
     (person) => person.id === guardianLink?.guardian_person_id,
   );
   const church = data.churches.find((item) => item.id === profile.church_id);
+  const generatedAt = new Date();
+  const documentDate = generatedAt.toLocaleDateString("pt-BR");
+  const todayService = data.events.find((event) => {
+    const eventDate = new Date(event.starts_at);
+    return (
+      event.event_type === "worship" &&
+      eventDate.getFullYear() === generatedAt.getFullYear() &&
+      eventDate.getMonth() === generatedAt.getMonth() &&
+      eventDate.getDate() === generatedAt.getDate()
+    );
+  });
   const popup = window.open("", "_blank", "width=820,height=900");
   if (!popup) return;
   const safe = (value?: string) =>
@@ -2836,14 +2847,13 @@ function printGeneralChildConsent(profile: ChildProfile, data: WorkspaceData) {
   popup.document
     .write(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Autorização Kids — ${safe(child?.full_name)}</title><style>
     @page{size:A4;margin:16mm}*{box-sizing:border-box}body{font:14px Arial,sans-serif;color:#172b27;margin:0;line-height:1.48}header{border-bottom:3px solid #177356;padding-bottom:14px;margin-bottom:20px}h1{font-size:21px;margin:0 0 4px}h2{font-size:14px;margin:20px 0 8px}.muted{color:#5d6f69}.box{border:1px solid #cad7d2;border-radius:9px;padding:12px 16px;margin:12px 0}.box p{margin:5px 0}.choices{display:grid;gap:8px;margin:12px 0}.choice{border:1px solid #cad7d2;border-radius:8px;padding:9px 12px}.notice{padding:11px 13px;background:#f4f8f6;border-radius:8px}.signature-grid{display:grid;grid-template-columns:1fr 1fr;gap:32px;margin-top:52px}.signature{border-top:1px solid #172b27;padding-top:6px}.footer{margin-top:24px;padding-top:10px;border-top:1px solid #d9e2df;font-size:10px;color:#5d6f69}button{margin-top:18px;padding:10px 18px}@media print{button{display:none}}
-  </style></head><body><header><h1>Termo físico de autorização de uso de imagem</h1><div class="muted">Criança ou adolescente • cultos e atividades da igreja</div></header>
-  <div class="box"><p><strong>Igreja:</strong> ${safe(church?.name)}</p><p><strong>Criança/adolescente:</strong> ${safe(child?.full_name)}</p><p><strong>Data de nascimento:</strong> ${safe(birthDate)}</p><p><strong>Responsável legal:</strong> ${safe(guardian?.full_name)}</p><p><strong>CPF do responsável:</strong> ${safe(formatCpfForDocument(guardian?.document_cpf))}</p><p><strong>Telefone:</strong> ${safe(guardian?.phone_primary)}</p><p><strong>Endereço:</strong> ${safe(guardianAddress)}</p></div>
-  <h2>Manifestação do responsável</h2><p>Declaro ser pai, mãe ou responsável legal pela criança ou adolescente acima identificado e que recebi informações claras sobre a captação e o uso de sua imagem durante cultos e atividades promovidos pela igreja.</p>
-  <div class="choices"><div class="choice">☐ AUTORIZO fotografias durante os cultos e atividades.</div><div class="choice">☐ AUTORIZO gravações em vídeo durante os cultos e atividades.</div><div class="choice">☐ AUTORIZO a publicação das imagens autorizadas nos canais e redes sociais oficiais da igreja.</div><div class="choice">☐ NÃO AUTORIZO a captação nem a publicação de imagem.</div></div>
-  <p class="notice">A participação da criança ou adolescente não depende desta autorização. O responsável poderá revogar o consentimento por solicitação à igreja. Este documento deverá ser arquivado fisicamente pela igreja.</p>
-  <p><strong>Validade escolhida:</strong> ☐ 12 meses &nbsp; ☐ Até ____/____/________ &nbsp; ☐ Outra: ____________________</p>
+  </style></head><body><header><h1>Termo físico de autorização de uso de imagem</h1><div class="muted">Válido exclusivamente para o culto de ${safe(documentDate)}</div></header>
+  <div class="box"><p><strong>Igreja:</strong> ${safe(church?.name)}</p><p><strong>Culto:</strong> ${safe(todayService?.title || "Culto do dia")} — ${safe(documentDate)}</p><p><strong>Criança/adolescente:</strong> ${safe(child?.full_name)}</p><p><strong>Data de nascimento:</strong> ${safe(birthDate)}</p><p><strong>Responsável legal:</strong> ${safe(guardian?.full_name)}</p><p><strong>CPF do responsável:</strong> ${safe(formatCpfForDocument(guardian?.document_cpf))}</p><p><strong>Telefone:</strong> ${safe(guardian?.phone_primary)}</p><p><strong>Endereço:</strong> ${safe(guardianAddress)}</p></div>
+  <h2>Manifestação do responsável</h2><p>Declaro ser pai, mãe ou responsável legal pela criança ou adolescente acima identificado e que recebi informações claras sobre a captação e o uso de sua imagem exclusivamente durante o culto realizado nesta data.</p>
+  <div class="choices"><div class="choice">☐ AUTORIZO fotografias durante o culto de ${safe(documentDate)}.</div><div class="choice">☐ AUTORIZO gravações em vídeo durante o culto de ${safe(documentDate)}.</div><div class="choice">☐ AUTORIZO a publicação das imagens deste culto nos canais e redes sociais oficiais da igreja.</div><div class="choice">☐ NÃO AUTORIZO a captação nem a publicação de imagem.</div></div>
+  <p class="notice"><strong>Validade:</strong> somente para o culto de ${safe(documentDate)}. Este termo não autoriza o uso de imagem em cultos ou eventos futuros. A participação da criança ou adolescente não depende desta autorização. O documento deverá ser arquivado fisicamente pela igreja.</p>
   <div class="signature-grid"><div class="signature">Assinatura do responsável legal</div><div class="signature">Local e data</div></div>
-  <div class="footer">Ficha vinculada: ${safe(profile.person_id)} • Documento gerado em ${safe(new Date().toLocaleString("pt-BR"))}</div>
+  <div class="footer">Ficha vinculada: ${safe(profile.person_id)} • Documento gerado em ${safe(generatedAt.toLocaleString("pt-BR"))}</div>
   <button onclick="window.print()">Imprimir / salvar em PDF</button></body></html>`);
   popup.document.close();
   popup.focus();
