@@ -2132,6 +2132,49 @@ function PersonForm({
                         </div>
                         <div className="form-grid">
                           <Field
+                            label={`CPF do filho ${index + 1}`}
+                            required
+                            inputMode="numeric"
+                            value={child.document_cpf}
+                            onChange={(document_cpf) => {
+                              const maskedCpf = maskCpf(document_cpf);
+                              const cpfDigits = maskedCpf.replace(/\D/g, "");
+                              const existingChild =
+                                cpfDigits.length === 11
+                                  ? availablePeople.find(
+                                      (person) =>
+                                        person.id !== initial?.id &&
+                                        person.church_id === churchId &&
+                                        person.document_cpf?.replace(
+                                          /\D/g,
+                                          "",
+                                        ) === cpfDigits,
+                                    )
+                                  : undefined;
+                              setChildren(
+                                children.map((current, itemIndex) =>
+                                  itemIndex === index
+                                    ? existingChild
+                                      ? {
+                                          id: existingChild.id,
+                                          full_name: existingChild.full_name,
+                                          birth_date: toBrazilianDate(
+                                            existingChild.birth_date,
+                                          ),
+                                          gender: existingChild.gender ?? "",
+                                          document_cpf: maskedCpf,
+                                        }
+                                      : { ...current, document_cpf: maskedCpf }
+                                    : current,
+                                ),
+                              );
+                              if (existingChild)
+                                notify(
+                                  `${existingChild.full_name} já está cadastrado(a). Ao salvar, esta pessoa será adicionada como outro responsável.`,
+                                );
+                            }}
+                          />
+                          <Field
                             label={`Nome completo do filho ${index + 1}`}
                             required
                             wide
@@ -2165,52 +2208,6 @@ function PersonForm({
                                 ),
                               )
                             }
-                          />
-                          <Field
-                            label={`CPF do filho ${index + 1}`}
-                            required
-                            inputMode="numeric"
-                            value={child.document_cpf}
-                            onChange={(document_cpf) => {
-                              const maskedCpf = maskCpf(document_cpf);
-                              const cpfDigits = maskedCpf.replace(/\D/g, "");
-                              const existingChild =
-                                cpfDigits.length === 11
-                                  ? availablePeople.find(
-                                      (person) =>
-                                        person.id !== initial?.id &&
-                                        person.church_id === churchId &&
-                                        person.document_cpf?.replace(
-                                          /\D/g,
-                                          "",
-                                        ) === cpfDigits,
-                                    )
-                                  : undefined;
-                              setChildren(
-                                children.map((current, itemIndex) =>
-                                  itemIndex === index
-                                    ? existingChild
-                                      ? {
-                                          id: existingChild.id,
-                                          full_name: existingChild.full_name,
-                                          birth_date: toBrazilianDate(
-                                            existingChild.birth_date,
-                                          ),
-                                          gender: existingChild.gender ?? "",
-                                          document_cpf: maskedCpf,
-                                        }
-                                      : {
-                                          ...current,
-                                          document_cpf: maskedCpf,
-                                        }
-                                    : current,
-                                ),
-                              );
-                              if (existingChild)
-                                notify(
-                                  `${existingChild.full_name} já está cadastrado(a). Ao salvar, esta pessoa será adicionada como outro responsável.`,
-                                );
-                            }}
                           />
                           <SelectField
                             label={`Sexo do filho ${index + 1}`}
@@ -2490,15 +2487,21 @@ function Kids({
   );
   const childPerson = (childId: string) =>
     data.people.find((person) => person.id === childId);
-  const guardianName = (childId: string) => {
-    const link =
-      data.guardians.find(
-        (guardian) => guardian.child_id === childId && guardian.primary_contact,
-      ) ?? data.guardians.find((guardian) => guardian.child_id === childId);
-    return (
-      data.people.find((person) => person.id === link?.guardian_person_id)
-        ?.full_name ?? "Responsável não vinculado"
+  const guardianDetails = (childId: string) =>
+    data.guardians
+      .filter((guardian) => guardian.child_id === childId)
+      .map((guardian) => ({
+        ...guardian,
+        person: data.people.find(
+          (person) => person.id === guardian.guardian_person_id,
+        ),
+      }))
+      .filter((guardian) => guardian.person);
+  const guardianNames = (childId: string) => {
+    const names = guardianDetails(childId).map(
+      (guardian) => guardian.person?.full_name,
     );
+    return names.length ? names.join(" e ") : "Responsável não vinculado";
   };
   async function copyAuthorization(authorization: ChildAuthorization) {
     const link = `${window.location.origin}${window.location.pathname}?authorization=${authorization.token}`;
@@ -2625,20 +2628,40 @@ function Kids({
                 </div>
                 <dl>
                   <div>
-                    <dt>Responsável</dt>
-                    <dd>{guardianName(child.person_id)}</dd>
+                    <dt>CPF</dt>
+                    <dd>
+                      {maskCpf(person?.document_cpf ?? "") || "Não informado"}
+                    </dd>
                   </div>
                   <div>
-                    <dt>Emergência</dt>
-                    <dd>{child.emergency_contact_phone || "Não informado"}</dd>
+                    <dt>Nascimento</dt>
+                    <dd>
+                      {person?.birth_date
+                        ? toBrazilianDate(person.birth_date)
+                        : "Não informado"}
+                    </dd>
                   </div>
                   <div>
-                    <dt>Alergias</dt>
-                    <dd>{child.allergies || "Nenhuma informada"}</dd>
+                    <dt>Sexo</dt>
+                    <dd>{person?.gender || "Não informado"}</dd>
                   </div>
                   <div>
-                    <dt>Necessidades</dt>
-                    <dd>{child.special_needs || "Nenhuma informada"}</dd>
+                    <dt>Responsáveis</dt>
+                    <dd className="child-guardians">
+                      {guardianDetails(child.person_id).length
+                        ? guardianDetails(child.person_id).map((guardian) => (
+                            <span key={guardian.id}>
+                              <strong>{guardian.person?.full_name}</strong>
+                              {guardian.relationship
+                                ? ` • ${guardian.relationship}`
+                                : ""}
+                              {guardian.person?.phone_primary
+                                ? ` • ${guardian.person.phone_primary}`
+                                : ""}
+                            </span>
+                          ))
+                        : "Responsável não vinculado"}
+                    </dd>
                   </div>
                 </dl>
                 <button
@@ -2756,7 +2779,7 @@ function Kids({
                   <strong>
                     {childPerson(authorization.child_id)?.full_name}
                   </strong>
-                  <small>{guardianName(authorization.child_id)}</small>
+                  <small>{guardianNames(authorization.child_id)}</small>
                 </span>
               </span>
               <span>
@@ -2989,8 +3012,6 @@ function ChildForm({
     documentCpf: "",
     guardianId: "",
     relationship: "Mãe",
-    emergencyName: "",
-    emergencyPhone: "",
   });
   const [error, setError] = useState("");
   return (
@@ -3005,7 +3026,12 @@ function ChildForm({
           event.preventDefault();
           const cpf = form.documentCpf.replace(/\D/g, "");
           const existingPerson = people.find(
-            (person) => person.document_cpf?.replace(/\D/g, "") === cpf,
+            (person) =>
+              person.church_id === churchId &&
+              person.document_cpf?.replace(/\D/g, "") === cpf,
+          );
+          const guardian = people.find(
+            (person) => person.id === form.guardianId,
           );
           const birthAge = ageFromDate(form.birthDate);
           if (cpf.length !== 11)
@@ -3043,8 +3069,8 @@ function ChildForm({
               ...(profiles.find((item) => item.person_id === personId) ?? {}),
               person_id: personId,
               church_id: churchId,
-              emergency_contact_name: form.emergencyName,
-              emergency_contact_phone: form.emergencyPhone,
+              emergency_contact_name: guardian?.full_name ?? "",
+              emergency_contact_phone: guardian?.phone_primary ?? "",
               authorized_pickup_people:
                 profiles.find((item) => item.person_id === personId)
                   ?.authorized_pickup_people ?? [],
@@ -3071,6 +3097,40 @@ function ChildForm({
           <FormSection title="Identificação da criança">
             <div className="form-grid">
               <Field
+                label="CPF"
+                required
+                inputMode="numeric"
+                value={form.documentCpf}
+                onChange={(value) => {
+                  const documentCpf = maskCpf(value);
+                  const cpf = documentCpf.replace(/\D/g, "");
+                  const existing =
+                    cpf.length === 11
+                      ? people.find(
+                          (person) =>
+                            person.church_id === churchId &&
+                            person.document_cpf?.replace(/\D/g, "") === cpf,
+                        )
+                      : undefined;
+                  setForm({
+                    ...form,
+                    documentCpf,
+                    ...(existing
+                      ? {
+                          fullName: existing.full_name,
+                          birthDate: existing.birth_date ?? "",
+                          gender: existing.gender ?? "",
+                        }
+                      : {}),
+                  });
+                  setError(
+                    existing
+                      ? "Criança localizada. Selecione o responsável para criar apenas o novo vínculo."
+                      : "",
+                  );
+                }}
+              />
+              <Field
                 label="Nome completo"
                 wide
                 required
@@ -3083,15 +3143,6 @@ function ChildForm({
                 value={form.gender}
                 options={["Homem", "Mulher", "Prefiro não informar"]}
                 onChange={(value) => setForm({ ...form, gender: value })}
-              />
-              <Field
-                label="CPF"
-                required
-                inputMode="numeric"
-                value={form.documentCpf}
-                onChange={(value) =>
-                  setForm({ ...form, documentCpf: maskCpf(value) })
-                }
               />
               <Field
                 label="Data de nascimento"
@@ -3112,16 +3163,7 @@ function ChildForm({
                 options={people
                   .filter((person) => !person.categories.includes("Criança"))
                   .map((person) => `${person.id}|${person.full_name}`)}
-                onChange={(value) => {
-                  const guardian = people.find((person) => person.id === value);
-                  setForm({
-                    ...form,
-                    guardianId: value,
-                    emergencyName: guardian?.full_name ?? form.emergencyName,
-                    emergencyPhone:
-                      guardian?.phone_primary ?? form.emergencyPhone,
-                  });
-                }}
+                onChange={(value) => setForm({ ...form, guardianId: value })}
               />
               <SelectField
                 label="Parentesco"
@@ -3135,18 +3177,6 @@ function ChildForm({
                   "Responsável legal",
                 ]}
                 onChange={(value) => setForm({ ...form, relationship: value })}
-              />
-              <Field
-                label="Contato de emergência"
-                value={form.emergencyName}
-                onChange={(value) => setForm({ ...form, emergencyName: value })}
-              />
-              <Field
-                label="Telefone de emergência"
-                value={form.emergencyPhone}
-                onChange={(value) =>
-                  setForm({ ...form, emergencyPhone: value })
-                }
               />
             </div>
           </FormSection>
@@ -4517,6 +4547,26 @@ function PublicChurchRegistrationPage({ token }: { token: string }) {
                         </div>
                         <div className="form-grid public-form-grid">
                           <Field
+                            label={`CPF do filho ${index + 1}`}
+                            required
+                            inputMode="numeric"
+                            value={child.document_cpf}
+                            onChange={(document_cpf) =>
+                              setForm({
+                                ...form,
+                                children: form.children.map(
+                                  (current, itemIndex) =>
+                                    itemIndex === index
+                                      ? {
+                                          ...current,
+                                          document_cpf: maskCpf(document_cpf),
+                                        }
+                                      : current,
+                                ),
+                              })
+                            }
+                          />
+                          <Field
                             label={`Nome completo do filho ${index + 1}`}
                             required
                             wide
@@ -4549,26 +4599,6 @@ function PublicChurchRegistrationPage({ token }: { token: string }) {
                                           ...current,
                                           birth_date:
                                             maskBrazilianDate(birth_date),
-                                        }
-                                      : current,
-                                ),
-                              })
-                            }
-                          />
-                          <Field
-                            label={`CPF do filho ${index + 1}`}
-                            required
-                            inputMode="numeric"
-                            value={child.document_cpf}
-                            onChange={(document_cpf) =>
-                              setForm({
-                                ...form,
-                                children: form.children.map(
-                                  (current, itemIndex) =>
-                                    itemIndex === index
-                                      ? {
-                                          ...current,
-                                          document_cpf: maskCpf(document_cpf),
                                         }
                                       : current,
                                 ),
