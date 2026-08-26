@@ -132,6 +132,17 @@ test("cadastra e abre uma ficha aprofundada", async ({ page }) => {
     ).categories,
   ).toEqual(["Membro"]);
   expect(internalFamily.guardians).toHaveLength(1);
+  await page.getByRole("button", { name: "Nova pessoa" }).click();
+  await page.getByLabel("Possui filhos?").selectOption("Sim");
+  await page.getByLabel("CPF do filho 1").fill("222.456.789-02");
+  await expect(page.getByLabel("Nome completo do filho 1")).toHaveValue(
+    "Helena Cadastro",
+  );
+  await expect(page.getByLabel("Data de nascimento do filho 1")).toHaveValue(
+    "22/09/2012",
+  );
+  await expect(page.getByLabel("Sexo do filho 1")).toHaveValue("Mulher");
+  await page.getByRole("button", { name: "Cancelar" }).click();
   await page.getByRole("button", { name: "Ensino", exact: true }).click();
   const consolidation = page.locator(".group-card").filter({
     hasText: "Consolidação Essencial",
@@ -266,8 +277,8 @@ test("registra autorização infantil específica do culto", async ({ page }) =>
   await page.getByRole("button", { name: "Entrar no sistema" }).click();
   await page.getByRole("button", { name: "Kids", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Kids" })).toBeVisible();
-  await expect(page.getByText("Sofia Ribeiro", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Crianças", exact: true }).click();
+  await expect(page.getByText("Sofia Ribeiro", { exact: true })).toBeVisible();
   await expect(
     page.getByRole("button", {
       name: "Gerar autorização do culto de hoje",

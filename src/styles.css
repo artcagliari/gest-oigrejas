@@ -2386,6 +2386,18 @@ button.danger svg {
   color: var(--muted);
   font-weight: 700;
 }
+.existing-child-notice {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 7px;
+  color: var(--green);
+  font-weight: 750;
+}
+.existing-child-notice svg {
+  width: 14px;
+  height: 14px;
+}
 .cep-field > .cep-input-row {
   display: grid;
   grid-template-columns: 1fr auto;

@@ -510,6 +510,7 @@ function AuthenticatedApp() {
           familyChildren={
             modal.person ? familyChildrenForPerson(workspace, modal.person) : []
           }
+          availablePeople={workspace.people}
           onClose={() => setModal(null)}
           notify={showToast}
           onSave={(person, familyChildren) =>
@@ -1827,6 +1828,7 @@ function PersonForm({
   churchId,
   initial,
   familyChildren,
+  availablePeople,
   onClose,
   onSave,
   notify,
@@ -1834,6 +1836,7 @@ function PersonForm({
   churchId: string;
   initial?: Person;
   familyChildren: FamilyChildInput[];
+  availablePeople: Person[];
   onClose: () => void;
   onSave: (p: Person, children: FamilyChildInput[]) => void;
   notify: (message: string, type?: "success" | "error") => void;
@@ -2168,18 +2171,46 @@ function PersonForm({
                             required
                             inputMode="numeric"
                             value={child.document_cpf}
-                            onChange={(document_cpf) =>
+                            onChange={(document_cpf) => {
+                              const maskedCpf = maskCpf(document_cpf);
+                              const cpfDigits = maskedCpf.replace(/\D/g, "");
+                              const existingChild =
+                                cpfDigits.length === 11
+                                  ? availablePeople.find(
+                                      (person) =>
+                                        person.id !== initial?.id &&
+                                        person.church_id === churchId &&
+                                        person.document_cpf?.replace(
+                                          /\D/g,
+                                          "",
+                                        ) === cpfDigits,
+                                    )
+                                  : undefined;
                               setChildren(
                                 children.map((current, itemIndex) =>
                                   itemIndex === index
-                                    ? {
-                                        ...current,
-                                        document_cpf: maskCpf(document_cpf),
-                                      }
+                                    ? existingChild
+                                      ? {
+                                          id: existingChild.id,
+                                          full_name: existingChild.full_name,
+                                          birth_date: toBrazilianDate(
+                                            existingChild.birth_date,
+                                          ),
+                                          gender: existingChild.gender ?? "",
+                                          document_cpf: maskedCpf,
+                                        }
+                                      : {
+                                          ...current,
+                                          document_cpf: maskedCpf,
+                                        }
                                     : current,
                                 ),
-                              )
-                            }
+                              );
+                              if (existingChild)
+                                notify(
+                                  `${existingChild.full_name} já está cadastrado(a). Ao salvar, esta pessoa será adicionada como outro responsável.`,
+                                );
+                            }}
                           />
                           <SelectField
                             label={`Sexo do filho ${index + 1}`}
@@ -2204,6 +2235,11 @@ function PersonForm({
                         {personAge(child.birth_date) !== null && (
                           <small className="child-age">
                             Idade atual: {personAge(child.birth_date)} anos
+                          </small>
+                        )}
+                        {child.id && (
+                          <small className="existing-child-notice">
+                            <Check /> Cadastro existente localizado pelo CPF
                           </small>
                         )}
                       </div>
@@ -2446,7 +2482,7 @@ function Kids({
   );
   const [serviceId, setServiceId] = useState(services[0]?.id ?? "");
   const [tab, setTab] = useState<"children" | "groups" | "authorizations">(
-    "children",
+    "groups",
   );
   const selectedService = services.find((event) => event.id === serviceId);
   const authorizations = data.childAuthorizations.filter(
@@ -2475,8 +2511,8 @@ function Kids({
         eyebrow="PROTEÇÃO E ACOLHIMENTO"
         title="Kids"
         text="Crianças, responsáveis e autorizações de uso de imagem em um único fluxo."
-        action="Nova criança"
-        onAction={onAddChild}
+        action={tab === "groups" ? "Novo grupo Kids" : "Nova criança"}
+        onAction={tab === "groups" ? () => onKidsGroup() : onAddChild}
       />
       <section className="kids-service-bar card">
         <div>
@@ -2647,9 +2683,6 @@ function Kids({
               <h2>Grupos de crianças</h2>
               <p>Organize as crianças por turma, idade ou necessidade.</p>
             </div>
-            <button className="primary" onClick={() => onKidsGroup()}>
-              <Plus /> Novo grupo Kids
-            </button>
           </div>
           <div className="children-grid">
             {data.kidsGroups.map((group) => (
