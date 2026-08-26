@@ -182,6 +182,7 @@ function familyChildrenForPerson(data: WorkspaceData, person: Person) {
       id: child.id,
       full_name: child.full_name,
       birth_date: child.birth_date ?? "",
+      gender: child.gender ?? "",
       document_cpf: child.document_cpf ?? "",
     }));
 }
@@ -533,6 +534,7 @@ function AuthenticatedApp() {
         <ChildForm
           churchId={churchId}
           people={workspace.people}
+          profiles={workspace.children}
           onClose={() => setModal(null)}
           onSave={(person, profile, guardianId, relationship) =>
             persist(
@@ -1857,6 +1859,7 @@ function PersonForm({
         : (initial?.children_names ?? []).map((full_name) => ({
             full_name,
             birth_date: "",
+            gender: "",
             document_cpf: "",
           })),
     ),
@@ -2071,6 +2074,7 @@ function PersonForm({
                                 {
                                   full_name: "",
                                   birth_date: "",
+                                  gender: "",
                                   document_cpf: "",
                                 },
                               ]
@@ -2159,6 +2163,25 @@ function PersonForm({
                               )
                             }
                           />
+                          <SelectField
+                            label={`Sexo do filho ${index + 1}`}
+                            required
+                            value={child.gender}
+                            options={[
+                              "Homem",
+                              "Mulher",
+                              "Prefiro não informar",
+                            ]}
+                            onChange={(gender) =>
+                              setChildren(
+                                children.map((current, itemIndex) =>
+                                  itemIndex === index
+                                    ? { ...current, gender }
+                                    : current,
+                                ),
+                              )
+                            }
+                          />
                         </div>
                         {personAge(child.birth_date) !== null && (
                           <small className="child-age">
@@ -2176,6 +2199,7 @@ function PersonForm({
                           {
                             full_name: "",
                             birth_date: "",
+                            gender: "",
                             document_cpf: "",
                           },
                         ])
@@ -2819,11 +2843,13 @@ function printChildAuthorization(
 function ChildForm({
   churchId,
   people,
+  profiles,
   onClose,
   onSave,
 }: {
   churchId: string;
   people: Person[];
+  profiles: ChildProfile[];
   onClose: () => void;
   onSave: (
     person: Person,
@@ -2835,15 +2861,14 @@ function ChildForm({
   const [form, setForm] = useState({
     fullName: "",
     birthDate: "",
+    gender: "",
+    documentCpf: "",
     guardianId: "",
     relationship: "Mãe",
     emergencyName: "",
     emergencyPhone: "",
-    allergies: "",
-    medicalNotes: "",
-    specialNeeds: "",
-    pickupPeople: "",
   });
+  const [error, setError] = useState("");
   return (
     <ModalShell
       title="Nova criança"
@@ -2854,32 +2879,51 @@ function ChildForm({
       <form
         onSubmit={(event) => {
           event.preventDefault();
-          const personId = newId(),
+          const cpf = form.documentCpf.replace(/\D/g, "");
+          const existingPerson = people.find(
+            (person) => person.document_cpf?.replace(/\D/g, "") === cpf,
+          );
+          const birthAge = ageFromDate(form.birthDate);
+          if (cpf.length !== 11)
+            return setError("Informe um CPF com 11 números.");
+          if (birthAge < 0 || birthAge >= 18)
+            return setError(
+              "O cadastro Kids aceita somente menores de 18 anos.",
+            );
+          const personId = existingPerson?.id ?? newId(),
             person: Person = {
+              ...(existingPerson ?? {}),
               id: personId,
               church_id: churchId,
               full_name: form.fullName,
               birth_date: form.birthDate,
-              address: { country: "Brasil" },
-              categories: ["Criança"],
-              ministry_roles: [],
-              group_ids: [],
+              gender: form.gender,
+              document_cpf: cpf,
+              address: existingPerson?.address ?? { country: "Brasil" },
+              categories: [
+                ...new Set([
+                  ...(existingPerson?.categories ?? []),
+                  "Criança",
+                  ...(birthAge >= 12 ? ["Adolescente"] : []),
+                ]),
+              ],
+              ministry_roles: existingPerson?.ministry_roles ?? [],
+              group_ids: existingPerson?.group_ids ?? [],
               active: true,
-              consent: { ...emptyConsent, data_processing: true },
+              consent: existingPerson?.consent ?? {
+                ...emptyConsent,
+                data_processing: true,
+              },
             },
             profile: ChildProfile = {
+              ...(profiles.find((item) => item.person_id === personId) ?? {}),
               person_id: personId,
               church_id: churchId,
               emergency_contact_name: form.emergencyName,
               emergency_contact_phone: form.emergencyPhone,
-              allergies: form.allergies,
-              medical_notes: form.medicalNotes,
-              special_needs: form.specialNeeds,
-              authorized_pickup_people: form.pickupPeople
-                .split("\n")
-                .map((name) => name.trim())
-                .filter(Boolean)
-                .map((name) => ({ name })),
+              authorized_pickup_people:
+                profiles.find((item) => item.person_id === personId)
+                  ?.authorized_pickup_people ?? [],
               pickup_code_required: true,
               active: true,
             };
@@ -2908,6 +2952,22 @@ function ChildForm({
                 required
                 value={form.fullName}
                 onChange={(value) => setForm({ ...form, fullName: value })}
+              />
+              <SelectField
+                label="Sexo"
+                required
+                value={form.gender}
+                options={["Homem", "Mulher", "Prefiro não informar"]}
+                onChange={(value) => setForm({ ...form, gender: value })}
+              />
+              <Field
+                label="CPF"
+                required
+                inputMode="numeric"
+                value={form.documentCpf}
+                onChange={(value) =>
+                  setForm({ ...form, documentCpf: maskCpf(value) })
+                }
               />
               <Field
                 label="Data de nascimento"
@@ -2966,50 +3026,11 @@ function ChildForm({
               />
             </div>
           </FormSection>
-          <FormSection title="Saúde e acolhimento">
-            <div className="form-grid">
-              <label>
-                Alergias
-                <textarea
-                  rows={3}
-                  value={form.allergies}
-                  onChange={(event) =>
-                    setForm({ ...form, allergies: event.target.value })
-                  }
-                />
-              </label>
-              <label>
-                Informações médicas
-                <textarea
-                  rows={3}
-                  value={form.medicalNotes}
-                  onChange={(event) =>
-                    setForm({ ...form, medicalNotes: event.target.value })
-                  }
-                />
-              </label>
-              <label className="full">
-                Necessidades específicas de cuidado
-                <textarea
-                  rows={3}
-                  value={form.specialNeeds}
-                  onChange={(event) =>
-                    setForm({ ...form, specialNeeds: event.target.value })
-                  }
-                />
-              </label>
-              <label className="full">
-                Outras pessoas autorizadas a retirar — uma por linha
-                <textarea
-                  rows={3}
-                  value={form.pickupPeople}
-                  onChange={(event) =>
-                    setForm({ ...form, pickupPeople: event.target.value })
-                  }
-                />
-              </label>
-            </div>
-          </FormSection>
+          {error && (
+            <p className="field-error" role="alert">
+              {error}
+            </p>
+          )}
         </div>
         <ModalActions onClose={onClose} />
       </form>
@@ -3999,6 +4020,7 @@ function PublicChurchRegistrationPage({ token }: { token: string }) {
       full_name: child.full_name.trim(),
       birth_date: brazilianDateToIso(child.birth_date) ?? "",
       document_cpf: child.document_cpf.replace(/\D/g, ""),
+      gender: child.gender,
       valid_birth_date: personAge(child.birth_date) !== null,
     }));
     const familyCpfs = [
@@ -4018,6 +4040,7 @@ function PublicChurchRegistrationPage({ token }: { token: string }) {
           full_name: child.full_name,
           birth_date: child.birth_date,
           document_cpf: child.document_cpf,
+          gender: child.gender,
         })),
       });
       setDone(true);
@@ -4218,6 +4241,7 @@ function PublicChurchRegistrationPage({ token }: { token: string }) {
                               {
                                 full_name: "",
                                 birth_date: "",
+                                gender: "",
                                 document_cpf: "",
                               },
                             ]
@@ -4310,6 +4334,27 @@ function PublicChurchRegistrationPage({ token }: { token: string }) {
                               })
                             }
                           />
+                          <SelectField
+                            label={`Sexo do filho ${index + 1}`}
+                            required
+                            value={child.gender}
+                            options={[
+                              "Homem",
+                              "Mulher",
+                              "Prefiro não informar",
+                            ]}
+                            onChange={(gender) =>
+                              setForm({
+                                ...form,
+                                children: form.children.map(
+                                  (current, itemIndex) =>
+                                    itemIndex === index
+                                      ? { ...current, gender }
+                                      : current,
+                                ),
+                              })
+                            }
+                          />
                         </div>
                         {personAge(child.birth_date) !== null && (
                           <small className="child-age">
@@ -4329,6 +4374,7 @@ function PublicChurchRegistrationPage({ token }: { token: string }) {
                             {
                               full_name: "",
                               birth_date: "",
+                              gender: "",
                               document_cpf: "",
                             },
                           ],
@@ -6351,6 +6397,8 @@ function familyChildrenError(
       return `${label}: a data de nascimento não pode ser futura.`;
     if (child.document_cpf.replace(/\D/g, "").length !== 11)
       return `${label}: informe um CPF com 11 números.`;
+    if (!["Homem", "Mulher", "Prefiro não informar"].includes(child.gender))
+      return `${label}: informe o sexo.`;
   }
   return "";
 }

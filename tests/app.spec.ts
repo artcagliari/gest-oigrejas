@@ -76,10 +76,12 @@ test("cadastra e abre uma ficha aprofundada", async ({ page }) => {
   await page.getByLabel("Nome completo do filho 1").fill("Sandra Cadastro");
   await page.getByLabel("Data de nascimento do filho 1").fill("10/04/1998");
   await page.getByLabel("CPF do filho 1").fill("111.456.789-01");
+  await page.getByLabel("Sexo do filho 1").selectOption("Mulher");
   await page.getByRole("button", { name: "Adicionar outro filho" }).click();
   await page.getByLabel("Nome completo do filho 2").fill("Helena Cadastro");
   await page.getByLabel("Data de nascimento do filho 2").fill("22/09/2012");
   await page.getByLabel("CPF do filho 2").fill("222.456.789-02");
+  await page.getByLabel("Sexo do filho 2").selectOption("Mulher");
   await page.getByLabel("Telefone WhatsApp").fill("11999990000");
   await expect(page.getByLabel("Telefone WhatsApp")).toHaveValue(
     "(11) 99999-0000",
@@ -128,7 +130,7 @@ test("cadastra e abre uma ficha aprofundada", async ({ page }) => {
     internalFamily.children.find(
       (child: { full_name: string }) => child.full_name === "Sandra Cadastro",
     ).categories,
-  ).toEqual(["Pré-cadastro"]);
+  ).toEqual(["Membro"]);
   expect(internalFamily.guardians).toHaveLength(1);
   await page.getByRole("button", { name: "Ensino", exact: true }).click();
   const consolidation = page.locator(".group-card").filter({
@@ -331,10 +333,12 @@ test("membro faz pré-cadastro pelo link e já fica vinculado à igreja", async 
   await page.getByLabel("Nome completo do filho 1").fill("Gabriel Cadastro");
   await page.getByLabel("Data de nascimento do filho 1").fill("10/04/2016");
   await page.getByLabel("CPF do filho 1").fill("123.456.789-01");
+  await page.getByLabel("Sexo do filho 1").selectOption("Homem");
   await page.getByRole("button", { name: "Adicionar outro filho" }).click();
   await page.getByLabel("Nome completo do filho 2").fill("Helena Cadastro");
   await page.getByLabel("Data de nascimento do filho 2").fill("22/09/2012");
   await page.getByLabel("CPF do filho 2").fill("123.456.789-02");
+  await page.getByLabel("Sexo do filho 2").selectOption("Mulher");
   await page.getByLabel("Telefone WhatsApp").fill("11988887766");
   await page.getByLabel("E-mail").fill("rafael.cadastro@exemplo.org");
   await page.getByLabel("CEP").fill("01000-000");

@@ -65,6 +65,7 @@ export type FamilyChildInput = {
   id?: string;
   full_name: string;
   birth_date: string;
+  gender: string;
   document_cpf: string;
 };
 
@@ -1100,7 +1101,7 @@ export async function savePersonFamily(
     );
     const childId = child.id ?? personWithSameCpf?.id ?? newId();
     const childAge = ageFromIsoDate(child.birth_date);
-    const childCategories = childAge < 18 ? ["Criança"] : ["Pré-cadastro"];
+    const childCategories = childAge < 18 ? ["Criança"] : ["Membro"];
     if (childAge >= 12 && childAge < 18) childCategories.push("Adolescente");
     const existingPerson = next.people.find((item) => item.id === childId);
     const childPerson: Person = {
@@ -1117,11 +1118,28 @@ export async function savePersonFamily(
       }),
       full_name: child.full_name.trim(),
       birth_date: child.birth_date,
+      gender: child.gender,
       document_cpf: child.document_cpf.trim(),
       address: structuredClone(parent.address),
-      categories: existingPerson?.categories.length
-        ? existingPerson.categories
-        : childCategories,
+      categories:
+        childAge >= 18
+          ? [
+              ...new Set([
+                ...(existingPerson?.categories ?? []).filter(
+                  (category) =>
+                    !["Pré-cadastro", "Criança", "Adolescente"].includes(
+                      category,
+                    ),
+                ),
+                "Membro",
+              ]),
+            ]
+          : [
+              ...new Set([
+                ...(existingPerson?.categories ?? []),
+                ...childCategories,
+              ]),
+            ],
     };
     if (childAge >= 18) {
       next = await savePerson(next, childPerson);
@@ -1863,18 +1881,6 @@ export async function submitPublicChurchRegistration(
     ].map((cpf) => cpf?.replace(/\D/g, ""));
     if (new Set(normalizedCpfs).size !== normalizedCpfs.length)
       throw new Error("O CPF do responsável e de cada criança deve ser único.");
-    if (
-      input.children.some((child) =>
-        data.people.some(
-          (person) =>
-            person.church_id === "demo-church" &&
-            person.document_cpf?.replace(/\D/g, "") ===
-              child.document_cpf.replace(/\D/g, ""),
-        ),
-      )
-    )
-      throw new Error("Já existe uma pessoa com o CPF de uma das crianças.");
-
     data.people.push({
       id: parentId,
       church_id: "demo-church",
@@ -1905,16 +1911,23 @@ export async function submitPublicChurchRegistration(
       },
     });
     for (const child of input.children) {
-      const childId = newId();
+      const existingChild = data.people.find(
+        (person) =>
+          person.church_id === "demo-church" &&
+          person.document_cpf?.replace(/\D/g, "") ===
+            child.document_cpf.replace(/\D/g, ""),
+      );
+      const childId = existingChild?.id ?? newId();
       const childAge = ageFromIsoDate(child.birth_date);
-      const childCategories =
-        childAge < 18 ? ["Pré-cadastro", "Criança"] : ["Pré-cadastro"];
+      const childCategories = childAge < 18 ? ["Criança"] : ["Membro"];
       if (childAge >= 12 && childAge < 18) childCategories.push("Adolescente");
-      data.people.push({
+      const childPerson: Person = {
+        ...(existingChild ?? {}),
         id: childId,
         church_id: "demo-church",
         full_name: child.full_name.trim(),
         birth_date: child.birth_date,
+        gender: child.gender,
         document_cpf: child.document_cpf.trim(),
         address: structuredClone(input.address),
         categories: childCategories,
@@ -1926,32 +1939,65 @@ export async function submitPublicChurchRegistration(
           ...consentOff,
           data_processing: input.data_processing_consent,
         },
-      });
+      };
+      data.people = [
+        ...data.people.filter((person) => person.id !== childId),
+        childPerson,
+      ];
       if (childAge < 18) {
-        data.children.push({
-          person_id: childId,
-          church_id: "demo-church",
-          emergency_contact_name: input.full_name.trim(),
-          emergency_contact_phone: input.phone_primary?.trim(),
-          authorized_pickup_people: [
-            {
-              name: input.full_name.trim(),
-              document: input.document_cpf?.trim(),
-            },
-          ],
-          pickup_code_required: true,
-          active: true,
-        });
-        data.guardians.push({
-          id: newId(),
-          church_id: "demo-church",
-          child_id: childId,
-          guardian_person_id: parentId,
-          relationship: "Pai, mãe ou responsável",
-          legal_guardian: true,
-          primary_contact: true,
-          can_pickup: true,
-        });
+        const existingProfile = data.children.find(
+          (profile) => profile.person_id === childId,
+        );
+        const pickupPeople = [
+          ...(existingProfile?.authorized_pickup_people ?? []),
+          {
+            name: input.full_name.trim(),
+            document: input.document_cpf?.trim(),
+          },
+        ].filter(
+          (pickup, index, all) =>
+            all.findIndex(
+              (item) =>
+                item.document?.replace(/\D/g, "") ===
+                pickup.document?.replace(/\D/g, ""),
+            ) === index,
+        );
+        data.children = [
+          ...data.children.filter((profile) => profile.person_id !== childId),
+          {
+            ...(existingProfile ?? {}),
+            person_id: childId,
+            church_id: "demo-church",
+            emergency_contact_name: input.full_name.trim(),
+            emergency_contact_phone: input.phone_primary?.trim(),
+            authorized_pickup_people: pickupPeople,
+            pickup_code_required: true,
+            active: true,
+          },
+        ];
+        const hasPrimary = data.guardians.some(
+          (guardian) =>
+            guardian.child_id === childId && guardian.primary_contact,
+        );
+        data.guardians = [
+          ...data.guardians.filter(
+            (guardian) =>
+              !(
+                guardian.child_id === childId &&
+                guardian.guardian_person_id === parentId
+              ),
+          ),
+          {
+            id: newId(),
+            church_id: "demo-church",
+            child_id: childId,
+            guardian_person_id: parentId,
+            relationship: "Pai, mãe ou responsável",
+            legal_guardian: true,
+            primary_contact: !hasPrimary,
+            can_pickup: true,
+          },
+        ];
       }
     }
     localWrite(data);
