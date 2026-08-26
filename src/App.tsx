@@ -390,6 +390,7 @@ function AuthenticatedApp() {
             (selectedPerson ? (
               <PersonDetail
                 person={selectedPerson}
+                data={workspace}
                 groups={workspace.groups}
                 groupHistory={workspace.groupHistory.filter(
                   (entry) => entry.person_id === selectedPerson.id,
@@ -1553,6 +1554,7 @@ function People({
 
 function PersonDetail({
   person,
+  data,
   groups,
   groupHistory,
   onBack,
@@ -1561,6 +1563,7 @@ function PersonDetail({
   onDelete,
 }: {
   person: Person;
+  data: WorkspaceData;
   groups: TeachingGroup[];
   groupHistory: GroupMembershipHistory[];
   onBack: () => void;
@@ -1576,7 +1579,31 @@ function PersonDetail({
       : null,
     personGroups = groups.filter((group) =>
       person.group_ids.includes(group.id),
-    );
+    ),
+    isChild =
+      (age !== null && age < 18) ||
+      person.categories.some((category) =>
+        ["Criança", "Adolescente"].includes(category),
+      ),
+    childGuardians = data.guardians
+      .filter((guardian) => guardian.child_id === person.id)
+      .map((guardian) => ({
+        ...guardian,
+        person: data.people.find(
+          (candidate) => candidate.id === guardian.guardian_person_id,
+        ),
+      }))
+      .filter((guardian) => guardian.person),
+    guardiansSummary = childGuardians
+      .map((guardian) => {
+        const phone = guardian.person?.phone_primary
+          ? maskPhone(guardian.person.phone_primary)
+          : undefined;
+        return [guardian.person?.full_name, guardian.relationship, phone]
+          .filter(Boolean)
+          .join(" • ");
+      })
+      .join(" | ");
   return (
     <>
       <div className="detail-head">
@@ -1641,20 +1668,36 @@ function PersonDetail({
       {tab === "info" && (
         <div className="detail-grid">
           <InfoCard
-            title="Dados pessoais"
+            title={isChild ? "Dados da criança" : "Dados pessoais"}
             icon={UserRound}
-            rows={[
-              [
-                "Nascimento",
-                person.birth_date ? formatDate(person.birth_date) : undefined,
-              ],
-              ["Sexo", person.gender],
-              ["Escolaridade", person.education],
-              ["Estado civil", person.marital_status],
-              ["Cônjuge", person.spouse_name],
-              ["Filhos", person.children_names?.join(", ")],
-              ["CPF", person.document_cpf],
-            ]}
+            rows={
+              isChild
+                ? [
+                    ["CPF", maskCpf(person.document_cpf ?? "")],
+                    [
+                      "Nascimento",
+                      person.birth_date
+                        ? formatDate(person.birth_date)
+                        : undefined,
+                    ],
+                    ["Sexo", person.gender],
+                    ["Responsáveis", guardiansSummary || undefined],
+                  ]
+                : [
+                    [
+                      "Nascimento",
+                      person.birth_date
+                        ? formatDate(person.birth_date)
+                        : undefined,
+                    ],
+                    ["Sexo", person.gender],
+                    ["Escolaridade", person.education],
+                    ["Estado civil", person.marital_status],
+                    ["Cônjuge", person.spouse_name],
+                    ["Filhos", person.children_names?.join(", ")],
+                    ["CPF", maskCpf(person.document_cpf ?? "")],
+                  ]
+            }
           />
           <InfoCard
             title="Contato e endereço"
