@@ -319,6 +319,19 @@ test("registra autorização infantil específica do culto", async ({ page }) =>
     .getByRole("button", { name: "Ver crianças e autorizações" })
     .click();
   await expect(page.getByText("Aguardando o responsável")).toBeVisible();
+  const printPopupPromise = page.waitForEvent("popup");
+  await page.getByRole("button", { name: "Imprimir termo" }).click();
+  const printPopup = await printPopupPromise;
+  await expect(
+    printPopup.getByText("Assinatura de Mariana Ribeiro"),
+  ).toBeVisible();
+  await expect(
+    printPopup.getByText("Assinatura de Carlos Ribeiro"),
+  ).toBeVisible();
+  await expect(
+    printPopup.getByRole("button", { name: "Imprimir / salvar em PDF" }),
+  ).toBeVisible();
+  await printPopup.close();
   const downloadPromise = page.waitForEvent("download");
   await page.getByRole("button", { name: "Baixar termo" }).click();
   const download = await downloadPromise;
@@ -330,6 +343,9 @@ test("registra autorização infantil específica do culto", async ({ page }) =>
   expect(downloadedTerm).toContain("Carlos Ribeiro");
   expect(downloadedTerm).toContain("Responsável legal 1");
   expect(downloadedTerm).toContain("Responsável legal 2");
+  expect(downloadedTerm).toContain("Assinatura de Mariana Ribeiro");
+  expect(downloadedTerm).toContain("Assinatura de Carlos Ribeiro");
+  expect(downloadedTerm).toContain("Imprimir / salvar em PDF");
   await page.getByRole("button", { name: "Dar presença" }).click();
   await expect(page.getByText("Presença da criança registrada.")).toBeVisible();
   await expect(page.getByText(/Presente desde/)).toBeVisible();
