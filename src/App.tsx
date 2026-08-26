@@ -59,6 +59,7 @@ import {
   FinanceEntry,
   FamilyChildInput,
   GroupMembershipHistory,
+  KidsGroup,
   generateKidsAuthorizations,
   getOrCreateChurchRegistrationLink,
   deleteDepartment,
@@ -83,6 +84,7 @@ import {
   saveFinancialAccount,
   saveFinancialCategory,
   saveGroup,
+  saveKidsGroup,
   savePersonFamily,
   saveTeachingMeeting,
   saveTransaction,
@@ -120,6 +122,7 @@ type Modal =
   | { type: "child" }
   | { type: "child-authorization"; authorization: ChildAuthorization }
   | { type: "daily-child-authorization"; childId: string }
+  | { type: "kids-group"; group?: KidsGroup }
   | { type: "department"; department?: Department }
   | { type: "department-delete"; department: Department }
   | { type: "person-delete"; person: Person }
@@ -427,6 +430,7 @@ function AuthenticatedApp() {
               onDailyAuthorization={(childId) =>
                 setModal({ type: "daily-child-authorization", childId })
               }
+              onKidsGroup={(group) => setModal({ type: "kids-group", group })}
               onGenerate={(eventId) =>
                 persist(
                   () => generateKidsAuthorizations(workspace, eventId),
@@ -567,6 +571,20 @@ function AuthenticatedApp() {
             persist(
               () => saveDailyChildAuthorization(workspace, authorization),
               "Confirmação do termo físico registrada para hoje.",
+            )
+          }
+        />
+      )}
+      {modal?.type === "kids-group" && (
+        <KidsGroupForm
+          churchId={churchId}
+          data={workspace}
+          initial={modal.group}
+          onClose={() => setModal(null)}
+          onSave={(group) =>
+            persist(
+              () => saveKidsGroup(workspace, group),
+              "Grupo Kids salvo com as crianças selecionadas.",
             )
           }
         />
@@ -2411,6 +2429,7 @@ function Kids({
   onAddChild,
   onAuthorization,
   onDailyAuthorization,
+  onKidsGroup,
   onGenerate,
   notify,
 }: {
@@ -2418,6 +2437,7 @@ function Kids({
   onAddChild: () => void;
   onAuthorization: (authorization: ChildAuthorization) => void;
   onDailyAuthorization: (childId: string) => void;
+  onKidsGroup: (group?: KidsGroup) => void;
   onGenerate: (eventId: string) => void;
   notify: (message: string) => void;
 }) {
@@ -2425,7 +2445,9 @@ function Kids({
     (event) => event.event_type === "worship",
   );
   const [serviceId, setServiceId] = useState(services[0]?.id ?? "");
-  const [tab, setTab] = useState<"children" | "authorizations">("children");
+  const [tab, setTab] = useState<"children" | "groups" | "authorizations">(
+    "children",
+  );
   const selectedService = services.find((event) => event.id === serviceId);
   const authorizations = data.childAuthorizations.filter(
     (item) => item.event_id === serviceId,
@@ -2528,6 +2550,12 @@ function Kids({
           Crianças
         </button>
         <button
+          className={tab === "groups" ? "active" : ""}
+          onClick={() => setTab("groups")}
+        >
+          Grupos Kids
+        </button>
+        <button
           className={tab === "authorizations" ? "active" : ""}
           onClick={() => setTab("authorizations")}
         >
@@ -2611,6 +2639,69 @@ function Kids({
             />
           )}
         </div>
+      )}
+      {tab === "groups" && (
+        <section>
+          <div className="section-action-row">
+            <div>
+              <h2>Grupos de crianças</h2>
+              <p>Organize as crianças por turma, idade ou necessidade.</p>
+            </div>
+            <button className="primary" onClick={() => onKidsGroup()}>
+              <Plus /> Novo grupo Kids
+            </button>
+          </div>
+          <div className="children-grid">
+            {data.kidsGroups.map((group) => (
+              <article className="card child-card" key={group.id}>
+                <div className="child-card-head">
+                  <span className="profile-avatar small-profile">
+                    <Users />
+                  </span>
+                  <span>
+                    <h2>{group.name}</h2>
+                    <small>
+                      {group.min_age !== undefined ||
+                      group.max_age !== undefined
+                        ? `${group.min_age ?? 0} a ${group.max_age ?? 17} anos`
+                        : "Todas as idades"}
+                    </small>
+                  </span>
+                  <b className={`status ${!group.active ? "inactive" : ""}`}>
+                    {group.active ? "Ativo" : "Inativo"}
+                  </b>
+                </div>
+                <p>{group.description || "Sem descrição."}</p>
+                <div className="kids-group-count">
+                  <strong>{group.member_ids.length}</strong>
+                  <span>crianças selecionadas</span>
+                </div>
+                <div className="role-chips">
+                  {group.member_ids.slice(0, 5).map((childId) => (
+                    <span key={childId}>
+                      {childPerson(childId)?.full_name ?? "Criança"}
+                    </span>
+                  ))}
+                </div>
+                <button
+                  className="secondary wide"
+                  onClick={() => onKidsGroup(group)}
+                >
+                  <Pencil /> Gerenciar grupo
+                </button>
+              </article>
+            ))}
+            {!data.kidsGroups.length && (
+              <EmptyState
+                icon={Users}
+                title="Nenhum grupo Kids criado"
+                text="Crie um grupo e escolha as crianças participantes."
+                action="Criar primeiro grupo"
+                onAction={() => onKidsGroup()}
+              />
+            )}
+          </div>
+        </section>
       )}
       {tab === "authorizations" && (
         <section className="card authorization-table">
@@ -3168,6 +3259,123 @@ function ChildAuthorizationForm({
               {error}
             </p>
           )}
+        </div>
+        <ModalActions onClose={onClose} />
+      </form>
+    </ModalShell>
+  );
+}
+
+function KidsGroupForm({
+  churchId,
+  data,
+  initial,
+  onClose,
+  onSave,
+}: {
+  churchId: string;
+  data: WorkspaceData;
+  initial?: KidsGroup;
+  onClose: () => void;
+  onSave: (group: KidsGroup) => void;
+}) {
+  const [form, setForm] = useState({
+    name: initial?.name ?? "",
+    description: initial?.description ?? "",
+    minAge: initial?.min_age?.toString() ?? "",
+    maxAge: initial?.max_age?.toString() ?? "",
+    active: initial?.active ?? true,
+    memberIds: initial?.member_ids ?? [],
+  });
+  return (
+    <ModalShell
+      title={initial ? "Gerenciar grupo Kids" : "Novo grupo Kids"}
+      subtitle="TURMAS DO MINISTÉRIO INFANTIL"
+      onClose={onClose}
+      large
+    >
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          onSave({
+            id: initial?.id ?? newId(),
+            church_id: churchId,
+            name: form.name,
+            description: form.description,
+            min_age: form.minAge === "" ? undefined : Number(form.minAge),
+            max_age: form.maxAge === "" ? undefined : Number(form.maxAge),
+            active: form.active,
+            member_ids: form.memberIds,
+          });
+        }}
+      >
+        <div className="form-scroll">
+          <FormSection title="Informações do grupo">
+            <div className="form-grid">
+              <Field
+                label="Nome do grupo"
+                required
+                wide
+                value={form.name}
+                onChange={(name) => setForm({ ...form, name })}
+              />
+              <Field
+                label="Idade mínima"
+                type="number"
+                value={form.minAge}
+                onChange={(minAge) => setForm({ ...form, minAge })}
+              />
+              <Field
+                label="Idade máxima"
+                type="number"
+                value={form.maxAge}
+                onChange={(maxAge) => setForm({ ...form, maxAge })}
+              />
+              <label className="full">
+                Descrição
+                <textarea
+                  rows={3}
+                  value={form.description}
+                  onChange={(event) =>
+                    setForm({ ...form, description: event.target.value })
+                  }
+                />
+              </label>
+            </div>
+          </FormSection>
+          <FormSection title="Crianças do grupo">
+            <div className="check-grid kids-member-picker">
+              {data.children
+                .filter((profile) => profile.active)
+                .map((profile) => {
+                  const person = data.people.find(
+                    (item) => item.id === profile.person_id,
+                  );
+                  return (
+                    <CheckCard
+                      key={profile.person_id}
+                      label={`${person?.full_name ?? "Criança"}${person?.birth_date ? ` • ${ageFromDate(person.birth_date)} anos` : ""}`}
+                      checked={form.memberIds.includes(profile.person_id)}
+                      onChange={() =>
+                        setForm({
+                          ...form,
+                          memberIds: form.memberIds.includes(profile.person_id)
+                            ? form.memberIds.filter(
+                                (id) => id !== profile.person_id,
+                              )
+                            : [...form.memberIds, profile.person_id],
+                        })
+                      }
+                    />
+                  );
+                })}
+            </div>
+          </FormSection>
+          <CheckCard
+            label="Grupo ativo"
+            checked={form.active}
+            onChange={() => setForm({ ...form, active: !form.active })}
+          />
         </div>
         <ModalActions onClose={onClose} />
       </form>

@@ -282,6 +282,20 @@ test("registra autorização infantil específica do culto", async ({ page }) =>
   await expect(
     page.getByRole("button", { name: "Termo de hoje confirmado" }),
   ).toBeVisible();
+  await page.getByRole("button", { name: "Grupos Kids" }).click();
+  await page.getByRole("button", { name: "Novo grupo Kids" }).click();
+  await page.getByLabel("Nome do grupo").fill("Pequenos Discípulos");
+  await page
+    .locator("label.check-card")
+    .filter({ hasText: "Sofia Ribeiro" })
+    .click();
+  await page.getByRole("button", { name: "Salvar" }).click();
+  await expect(
+    page.getByText("Grupo Kids salvo com as crianças selecionadas."),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Pequenos Discípulos" }),
+  ).toBeVisible();
   await page
     .getByRole("button", { name: "Autorizações por culto", exact: true })
     .click();

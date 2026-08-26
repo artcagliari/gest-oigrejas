@@ -1760,6 +1760,36 @@ nav {
 .child-card > button + button {
   margin-top: 8px;
 }
+.section-action-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 16px;
+}
+.section-action-row h2,
+.section-action-row p {
+  margin: 0;
+}
+.section-action-row p {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.kids-group-count {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  margin: 16px 0 10px;
+}
+.kids-group-count strong {
+  color: var(--green);
+  font-size: 24px;
+}
+.kids-group-count span {
+  color: var(--muted);
+  font-size: 10px;
+}
 .authorization-table {
   overflow: hidden;
 }

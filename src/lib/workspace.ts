@@ -158,6 +158,17 @@ export type DailyChildAuthorization = {
   confirmed_at: string;
 };
 
+export type KidsGroup = {
+  id: string;
+  church_id: string;
+  name: string;
+  description?: string;
+  min_age?: number;
+  max_age?: number;
+  active: boolean;
+  member_ids: string[];
+};
+
 export type ChildCheckin = {
   id: string;
   church_id: string;
@@ -314,6 +325,7 @@ export type WorkspaceData = {
   guardians: ChildGuardian[];
   childAuthorizations: ChildAuthorization[];
   dailyChildAuthorizations: DailyChildAuthorization[];
+  kidsGroups: KidsGroup[];
   childCheckins: ChildCheckin[];
   departments: Department[];
   departmentRoles: DepartmentRole[];
@@ -577,6 +589,18 @@ const demoData: WorkspaceData = {
     },
   ],
   dailyChildAuthorizations: [],
+  kidsGroups: [
+    {
+      id: "kg1",
+      church_id: "demo-church",
+      name: "Crianças",
+      description: "Grupo geral do ministério infantil.",
+      min_age: 3,
+      max_age: 11,
+      active: true,
+      member_ids: ["p4"],
+    },
+  ],
   childCheckins: [],
   departments: [
     {
@@ -680,6 +704,7 @@ function localRead(): WorkspaceData {
       dailyChildAuthorizations:
         parsed.dailyChildAuthorizations ??
         structuredClone(demoData.dailyChildAuthorizations),
+      kidsGroups: parsed.kidsGroups ?? structuredClone(demoData.kidsGroups),
       childCheckins:
         parsed.childCheckins ?? structuredClone(demoData.childCheckins),
       departments: parsed.departments ?? structuredClone(demoData.departments),
@@ -797,6 +822,7 @@ export async function loadWorkspace(
       guardians: [],
       childAuthorizations: [],
       dailyChildAuthorizations: [],
+      kidsGroups: [],
       childCheckins: [],
       departments: [],
       departmentRoles: [],
@@ -817,6 +843,7 @@ export async function loadWorkspace(
     guardiansRes,
     authorizationsRes,
     dailyAuthorizationsRes,
+    kidsGroupsRes,
     checkinsRes,
     departmentsRes,
     departmentRolesRes,
@@ -879,6 +906,11 @@ export async function loadWorkspace(
       .eq("church_id", churchId ?? "")
       .order("authorization_date", { ascending: false }),
     supabase
+      .from("kids_groups")
+      .select("*,kids_group_members(child_id)")
+      .eq("church_id", churchId ?? "")
+      .order("name"),
+    supabase
       .from("child_checkins")
       .select("*")
       .eq("church_id", churchId ?? "")
@@ -925,6 +957,7 @@ export async function loadWorkspace(
     guardiansRes.error ||
     authorizationsRes.error ||
     dailyAuthorizationsRes.error ||
+    kidsGroupsRes.error ||
     checkinsRes.error ||
     departmentsRes.error ||
     departmentRolesRes.error ||
@@ -990,6 +1023,15 @@ export async function loadWorkspace(
     childAuthorizations: (authorizationsRes.data ?? []) as ChildAuthorization[],
     dailyChildAuthorizations: (dailyAuthorizationsRes.data ??
       []) as DailyChildAuthorization[],
+    kidsGroups: (kidsGroupsRes.data ?? []).map((group) => {
+      const { kids_group_members, ...record } = group;
+      return {
+        ...record,
+        member_ids: (kids_group_members ?? []).map(
+          (membership: { child_id: string }) => membership.child_id,
+        ),
+      };
+    }) as KidsGroup[],
     childCheckins: (checkinsRes.data ?? []) as ChildCheckin[],
     departments: (departmentsRes.data ?? []) as Department[],
     departmentRoles: (departmentRolesRes.data ?? []) as DepartmentRole[],
@@ -1204,6 +1246,10 @@ export async function deletePerson(
       dailyChildAuthorizations: data.dailyChildAuthorizations.filter(
         (item) => item.child_id !== person.id,
       ),
+      kidsGroups: data.kidsGroups.map((group) => ({
+        ...group,
+        member_ids: group.member_ids.filter((id) => id !== person.id),
+      })),
       childCheckins: data.childCheckins.filter(
         (item) => item.child_id !== person.id,
       ),
@@ -1667,6 +1713,36 @@ export async function saveDailyChildAuthorization(
     .upsert(normalized, { onConflict: "child_id,authorization_date" });
   if (error) throw error;
   return loadWorkspace(normalized.church_id, false);
+}
+
+export async function saveKidsGroup(
+  data: WorkspaceData,
+  group: KidsGroup,
+): Promise<WorkspaceData> {
+  if (!group.name.trim()) throw new Error("Informe o nome do grupo Kids.");
+  if (isDemoMode || !supabase) {
+    const next = {
+      ...data,
+      kidsGroups: [
+        ...data.kidsGroups.filter((item) => item.id !== group.id),
+        { ...group, name: group.name.trim() },
+      ].sort((a, b) => a.name.localeCompare(b.name)),
+    };
+    localWrite(next);
+    return next;
+  }
+  const { error } = await supabase.rpc("save_kids_group", {
+    target_group: group.id,
+    target_church: group.church_id,
+    group_name: group.name.trim(),
+    group_description: group.description?.trim() || null,
+    group_min_age: group.min_age ?? null,
+    group_max_age: group.max_age ?? null,
+    group_active: group.active,
+    group_children: group.member_ids,
+  });
+  if (error) throw error;
+  return loadWorkspace(group.church_id, false);
 }
 
 export async function checkInChild(
@@ -2203,6 +2279,7 @@ export const emptyWorkspace: WorkspaceData = {
   guardians: [],
   childAuthorizations: [],
   dailyChildAuthorizations: [],
+  kidsGroups: [],
   childCheckins: [],
   departments: [],
   departmentRoles: [],
