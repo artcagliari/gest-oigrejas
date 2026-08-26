@@ -62,6 +62,7 @@ import {
   generateKidsAuthorizations,
   getOrCreateChurchRegistrationLink,
   deleteDepartment,
+  deletePerson,
   loadPublicChildAuthorization,
   loadPublicChurchRegistration,
   loadWorkspace,
@@ -121,6 +122,7 @@ type Modal =
   | { type: "daily-child-authorization"; childId: string }
   | { type: "department"; department?: Department }
   | { type: "department-delete"; department: Department }
+  | { type: "person-delete"; person: Person }
   | { type: "teaching-meeting"; group: TeachingGroup }
   | { type: "event"; date?: string }
   | { type: "finance" }
@@ -392,6 +394,10 @@ function AuthenticatedApp() {
                 onEdit={() =>
                   setModal({ type: "person", person: selectedPerson })
                 }
+                canDelete={identity.role === "super"}
+                onDelete={() =>
+                  setModal({ type: "person-delete", person: selectedPerson })
+                }
               />
             ) : (
               <People
@@ -589,6 +595,20 @@ function AuthenticatedApp() {
               "Departamento excluído.",
             )
           }
+        />
+      )}
+      {modal?.type === "person-delete" && (
+        <DeletePersonDialog
+          person={modal.person}
+          onClose={() => setModal(null)}
+          onConfirm={() => {
+            const person = modal.person;
+            void persist(
+              () => deletePerson(workspace, person),
+              "Pessoa excluída com seus vínculos.",
+            );
+            setSelectedPerson(null);
+          }}
         />
       )}
       {modal?.type === "teaching-meeting" && (
@@ -1516,12 +1536,16 @@ function PersonDetail({
   groupHistory,
   onBack,
   onEdit,
+  canDelete,
+  onDelete,
 }: {
   person: Person;
   groups: TeachingGroup[];
   groupHistory: GroupMembershipHistory[];
   onBack: () => void;
   onEdit: () => void;
+  canDelete: boolean;
+  onDelete: () => void;
 }) {
   const [tab, setTab] = useState<"info" | "church" | "consent">("info"),
     age = person.birth_date
@@ -1539,10 +1563,17 @@ function PersonDetail({
           <ArrowLeft />
           Voltar
         </button>
-        <button className="primary" onClick={onEdit}>
-          <Pencil />
-          Editar cadastro
-        </button>
+        <div className="detail-head-actions">
+          {canDelete && (
+            <button className="danger" onClick={onDelete}>
+              <Trash2 /> Excluir pessoa
+            </button>
+          )}
+          <button className="primary" onClick={onEdit}>
+            <Pencil />
+            Editar cadastro
+          </button>
+        </div>
       </div>
       <section className="profile-hero card">
         <span className="profile-avatar">{initials(person.full_name)}</span>
@@ -3406,6 +3437,43 @@ function DeleteDepartmentDialog({
         </button>
         <button className="danger" onClick={onConfirm}>
           <Trash2 /> Excluir departamento
+        </button>
+      </div>
+    </ModalShell>
+  );
+}
+
+function DeletePersonDialog({
+  person,
+  onClose,
+  onConfirm,
+}: {
+  person: Person;
+  onClose: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <ModalShell
+      title="Excluir pessoa"
+      subtitle="AÇÃO PERMANENTE • GESTOR GERAL"
+      onClose={onClose}
+    >
+      <div className="delete-confirmation">
+        <span>
+          <Trash2 />
+        </span>
+        <h3>Excluir “{person.full_name}”?</h3>
+        <p>
+          A ficha e seus vínculos com Kids, responsáveis, departamentos e grupos
+          serão removidos. Um eventual login da equipe não será apagado.
+        </p>
+      </div>
+      <div className="modal-actions">
+        <button className="secondary" onClick={onClose}>
+          Cancelar
+        </button>
+        <button className="danger" onClick={onConfirm}>
+          <Trash2 /> Excluir pessoa definitivamente
         </button>
       </div>
     </ModalShell>

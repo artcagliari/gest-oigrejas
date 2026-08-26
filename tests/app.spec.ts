@@ -168,6 +168,23 @@ test("abre cadastros de ensino, agenda e financeiro", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Nova conta" })).toBeVisible();
 });
 
+test("Gestor Geral exclui uma pessoa e seus vínculos", async ({ page }) => {
+  await page.getByRole("button", { name: "Entrar no sistema" }).click();
+  await page.getByRole("button", { name: "Pessoas", exact: true }).click();
+  await page.getByText("Lucas Almeida", { exact: true }).click();
+  await page.getByRole("button", { name: "Excluir pessoa" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Excluir “Lucas Almeida”?" }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Excluir pessoa definitivamente" })
+    .click();
+  await expect(
+    page.getByText("Pessoa excluída com seus vínculos."),
+  ).toBeVisible();
+  await expect(page.getByText("Lucas Almeida", { exact: true })).toHaveCount(0);
+});
+
 test("Gestor Geral define líder e participantes do grupo de ensino", async ({
   page,
 }) => {

@@ -1167,6 +1167,48 @@ export async function savePersonFamily(
   return next;
 }
 
+export async function deletePerson(
+  data: WorkspaceData,
+  person: Person,
+): Promise<WorkspaceData> {
+  if (isDemoMode || !supabase) {
+    const next: WorkspaceData = {
+      ...data,
+      people: data.people.filter((item) => item.id !== person.id),
+      children: data.children.filter((item) => item.person_id !== person.id),
+      guardians: data.guardians.filter(
+        (item) =>
+          item.child_id !== person.id && item.guardian_person_id !== person.id,
+      ),
+      childAuthorizations: data.childAuthorizations.filter(
+        (item) => item.child_id !== person.id,
+      ),
+      dailyChildAuthorizations: data.dailyChildAuthorizations.filter(
+        (item) => item.child_id !== person.id,
+      ),
+      childCheckins: data.childCheckins.filter(
+        (item) => item.child_id !== person.id,
+      ),
+      departmentMembers: data.departmentMembers.filter(
+        (item) => item.person_id !== person.id,
+      ),
+      teachingAttendance: data.teachingAttendance.filter(
+        (item) => item.person_id !== person.id,
+      ),
+      groupHistory: data.groupHistory.filter(
+        (item) => item.person_id !== person.id,
+      ),
+    };
+    localWrite(next);
+    return next;
+  }
+  const { error } = await supabase.rpc("delete_person_as_manager", {
+    target_person: person.id,
+  });
+  if (error) throw error;
+  return loadWorkspace(person.church_id, false);
+}
+
 export async function saveGroup(
   data: WorkspaceData,
   group: TeachingGroup,
