@@ -307,6 +307,14 @@ test("registra autorização infantil específica do culto", async ({ page }) =>
   await expect(
     page.getByRole("heading", { name: "Pequenos Discípulos" }),
   ).toBeVisible();
+  const pequenosDiscipulos = page.locator("article.child-card").filter({
+    hasText: "Pequenos Discípulos",
+  });
+  await pequenosDiscipulos
+    .getByRole("button", { name: "Ver crianças e autorizações" })
+    .click();
+  await expect(page.getByText("Aguardando o responsável")).toBeVisible();
+  await page.getByRole("button", { name: "Voltar para os grupos" }).click();
   await page
     .getByRole("button", { name: "Autorizações por culto", exact: true })
     .click();
@@ -322,6 +330,13 @@ test("registra autorização infantil específica do culto", async ({ page }) =>
   await expect(
     page.getByText("Decisão do responsável registrada."),
   ).toBeVisible();
+  await page.getByRole("button", { name: "Grupos Kids" }).click();
+  await page
+    .locator("article.child-card")
+    .filter({ hasText: "Pequenos Discípulos" })
+    .getByRole("button", { name: "Ver crianças e autorizações" })
+    .click();
+  await expect(page.getByText("Responsável autorizou")).toBeVisible();
 });
 
 test("responsável responde autorização pelo link público", async ({ page }) => {

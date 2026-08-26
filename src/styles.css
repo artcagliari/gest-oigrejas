@@ -1790,6 +1790,16 @@ nav {
   color: var(--muted);
   font-size: 10px;
 }
+.kids-group-detail-head h2 {
+  margin-top: 10px;
+}
+.kids-group-authorizations {
+  margin-top: 14px;
+}
+.authorization-status.not-generated {
+  color: var(--muted);
+  background: #edf1ef;
+}
 .authorization-table {
   overflow: hidden;
 }

@@ -2524,7 +2524,13 @@ function Kids({
   const [tab, setTab] = useState<"children" | "groups" | "authorizations">(
     "groups",
   );
+  const [selectedKidsGroupId, setSelectedKidsGroupId] = useState<string | null>(
+    null,
+  );
   const selectedService = services.find((event) => event.id === serviceId);
+  const selectedKidsGroup = data.kidsGroups.find(
+    (group) => group.id === selectedKidsGroupId,
+  );
   const authorizations = data.childAuthorizations.filter(
     (item) => item.event_id === serviceId,
   );
@@ -2744,62 +2750,221 @@ function Kids({
       )}
       {tab === "groups" && (
         <section>
-          <div className="section-action-row">
-            <div>
-              <h2>Grupos de crianças</h2>
-              <p>Organize as crianças por turma, idade ou necessidade.</p>
-            </div>
-          </div>
-          <div className="children-grid">
-            {data.kidsGroups.map((group) => (
-              <article className="card child-card" key={group.id}>
-                <div className="child-card-head">
-                  <span className="profile-avatar small-profile">
-                    <Users />
-                  </span>
-                  <span>
-                    <h2>{group.name}</h2>
-                    <small>
-                      {group.min_age !== undefined ||
-                      group.max_age !== undefined
-                        ? `${group.min_age ?? 0} a ${group.max_age ?? 17} anos`
-                        : "Todas as idades"}
-                    </small>
-                  </span>
-                  <b className={`status ${!group.active ? "inactive" : ""}`}>
-                    {group.active ? "Ativo" : "Inativo"}
-                  </b>
-                </div>
-                <p>{group.description || "Sem descrição."}</p>
-                <div className="kids-group-count">
-                  <strong>{group.member_ids.length}</strong>
-                  <span>crianças selecionadas</span>
-                </div>
-                <div className="role-chips">
-                  {group.member_ids.slice(0, 5).map((childId) => (
-                    <span key={childId}>
-                      {childPerson(childId)?.full_name ?? "Criança"}
-                    </span>
-                  ))}
+          {selectedKidsGroup ? (
+            <>
+              <div className="section-action-row kids-group-detail-head">
+                <div>
+                  <button
+                    className="text-action"
+                    onClick={() => setSelectedKidsGroupId(null)}
+                  >
+                    <ArrowLeft /> Voltar para os grupos
+                  </button>
+                  <h2>{selectedKidsGroup.name}</h2>
+                  <p>
+                    Autorizações das crianças para{" "}
+                    {selectedService?.title ?? "o culto selecionado"}.
+                  </p>
                 </div>
                 <button
-                  className="secondary wide"
-                  onClick={() => onKidsGroup(group)}
+                  className="secondary"
+                  onClick={() => onKidsGroup(selectedKidsGroup)}
                 >
                   <Pencil /> Gerenciar grupo
                 </button>
-              </article>
-            ))}
-            {!data.kidsGroups.length && (
-              <EmptyState
-                icon={Users}
-                title="Nenhum grupo Kids criado"
-                text="Crie um grupo e escolha as crianças participantes."
-                action="Criar primeiro grupo"
-                onAction={() => onKidsGroup()}
-              />
-            )}
-          </div>
+              </div>
+              {!serviceId ? (
+                <div className="kids-warning">
+                  <CalendarDays />
+                  <span>
+                    <strong>Selecione um culto acima.</strong> Assim será
+                    possível ver se o responsável autorizou cada criança.
+                  </span>
+                </div>
+              ) : (
+                <div className="card authorization-table kids-group-authorizations">
+                  <div className="authorization-head">
+                    <span>Criança e responsável</span>
+                    <span>Autorização do responsável</span>
+                    <span>Escopo autorizado</span>
+                    <span>Ações</span>
+                  </div>
+                  {selectedKidsGroup.member_ids.map((childId) => {
+                    const authorization = authorizations.find(
+                      (item) => item.child_id === childId,
+                    );
+                    return (
+                      <div className="authorization-row" key={childId}>
+                        <span className="person-cell">
+                          <span className="avatar blue">
+                            {initials(childPerson(childId)?.full_name ?? "C")}
+                          </span>
+                          <span>
+                            <strong>
+                              {childPerson(childId)?.full_name ?? "Criança"}
+                            </strong>
+                            <small>{guardianNames(childId)}</small>
+                          </span>
+                        </span>
+                        <span>
+                          {authorization ? (
+                            <>
+                              <b
+                                className={`authorization-status ${authorization.decision}`}
+                              >
+                                {authorizationDecisionForGuardian(
+                                  authorization.decision,
+                                )}
+                              </b>
+                              {authorization.signed_at && (
+                                <small>
+                                  {dateTime(authorization.signed_at)}
+                                </small>
+                              )}
+                            </>
+                          ) : (
+                            <b className="authorization-status not-generated">
+                              Autorização não gerada
+                            </b>
+                          )}
+                        </span>
+                        <span className="scope-icons">
+                          <i
+                            className={authorization?.allow_photo ? "on" : ""}
+                            title="Fotografia"
+                          >
+                            <Camera />
+                          </i>
+                          <i
+                            className={authorization?.allow_video ? "on" : ""}
+                            title="Vídeo"
+                          >
+                            <Video />
+                          </i>
+                          <i
+                            className={
+                              authorization?.allow_social_media ? "on" : ""
+                            }
+                            title="Redes sociais"
+                          >
+                            <Share2 />
+                          </i>
+                        </span>
+                        <span className="row-actions">
+                          {authorization ? (
+                            <>
+                              <button
+                                className="secondary compact"
+                                onClick={() => copyAuthorization(authorization)}
+                              >
+                                <Share2 /> Copiar autorização
+                              </button>
+                              <button
+                                className="icon-only"
+                                title="Imprimir autorização"
+                                onClick={() =>
+                                  printChildAuthorization(authorization, data)
+                                }
+                              >
+                                <Printer />
+                              </button>
+                              <button
+                                className="secondary compact"
+                                onClick={() => onAuthorization(authorization)}
+                              >
+                                {authorization.decision === "pending"
+                                  ? "Registrar"
+                                  : "Revisar"}
+                              </button>
+                            </>
+                          ) : (
+                            <button
+                              className="secondary compact"
+                              onClick={() => onGenerate(serviceId)}
+                            >
+                              <FileSignature /> Gerar autorizações
+                            </button>
+                          )}
+                        </span>
+                      </div>
+                    );
+                  })}
+                  {!selectedKidsGroup.member_ids.length && (
+                    <p className="inline-empty">
+                      Este grupo ainda não possui crianças.
+                    </p>
+                  )}
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              <div className="section-action-row">
+                <div>
+                  <h2>Grupos de crianças</h2>
+                  <p>Organize as crianças por turma, idade ou necessidade.</p>
+                </div>
+              </div>
+              <div className="children-grid">
+                {data.kidsGroups.map((group) => (
+                  <article className="card child-card" key={group.id}>
+                    <div className="child-card-head">
+                      <span className="profile-avatar small-profile">
+                        <Users />
+                      </span>
+                      <span>
+                        <h2>{group.name}</h2>
+                        <small>
+                          {group.min_age !== undefined ||
+                          group.max_age !== undefined
+                            ? `${group.min_age ?? 0} a ${group.max_age ?? 17} anos`
+                            : "Todas as idades"}
+                        </small>
+                      </span>
+                      <b
+                        className={`status ${!group.active ? "inactive" : ""}`}
+                      >
+                        {group.active ? "Ativo" : "Inativo"}
+                      </b>
+                    </div>
+                    <p>{group.description || "Sem descrição."}</p>
+                    <div className="kids-group-count">
+                      <strong>{group.member_ids.length}</strong>
+                      <span>crianças selecionadas</span>
+                    </div>
+                    <div className="role-chips">
+                      {group.member_ids.slice(0, 5).map((childId) => (
+                        <span key={childId}>
+                          {childPerson(childId)?.full_name ?? "Criança"}
+                        </span>
+                      ))}
+                    </div>
+                    <button
+                      className="primary wide"
+                      onClick={() => setSelectedKidsGroupId(group.id)}
+                    >
+                      <FileSignature /> Ver crianças e autorizações
+                    </button>
+                    <button
+                      className="secondary wide"
+                      onClick={() => onKidsGroup(group)}
+                    >
+                      <Pencil /> Gerenciar grupo
+                    </button>
+                  </article>
+                ))}
+                {!data.kidsGroups.length && (
+                  <EmptyState
+                    icon={Users}
+                    title="Nenhum grupo Kids criado"
+                    text="Crie um grupo e escolha as crianças participantes."
+                    action="Criar primeiro grupo"
+                    onAction={() => onKidsGroup()}
+                  />
+                )}
+              </div>
+            </>
+          )}
         </section>
       )}
       {tab === "authorizations" && (
@@ -2897,6 +3062,16 @@ function authorizationDecision(decision: ChildAuthorization["decision"]) {
     authorized: "Autorizado",
     denied: "Não autorizado",
     revoked: "Revogado",
+  }[decision];
+}
+function authorizationDecisionForGuardian(
+  decision: ChildAuthorization["decision"],
+) {
+  return {
+    pending: "Aguardando o responsável",
+    authorized: "Responsável autorizou",
+    denied: "Responsável não autorizou",
+    revoked: "Autorização revogada",
   }[decision];
 }
 function ageFromDate(date: string) {
