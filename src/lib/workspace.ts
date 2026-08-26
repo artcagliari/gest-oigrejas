@@ -1153,10 +1153,7 @@ export async function savePersonFamily(
         ministry_roles: [],
         group_ids: [],
         active: true,
-        consent: {
-          ...consentOff,
-          data_processing: parent.consent.data_processing,
-        },
+        consent: { ...parent.consent },
       }),
       full_name: child.full_name.trim(),
       birth_date: child.birth_date,
@@ -1486,6 +1483,15 @@ export async function saveChild(
   guardianPersonId?: string,
   relationship = "Responsável legal",
 ): Promise<WorkspaceData> {
+  const guardianPerson = guardianPersonId
+    ? data.people.find((item) => item.id === guardianPersonId)
+    : undefined;
+  const existingPerson = data.people.find((item) => item.id === person.id);
+  const personWithInheritedConsent: Person = {
+    ...person,
+    consent:
+      existingPerson?.consent ?? guardianPerson?.consent ?? person.consent,
+  };
   const alreadyHasPrimaryGuardian = data.guardians.some(
     (item) =>
       item.child_id === person.id &&
@@ -1509,7 +1515,7 @@ export async function saveChild(
       ...data,
       people: [
         ...data.people.filter((item) => item.id !== person.id),
-        person,
+        personWithInheritedConsent,
       ].sort((a, b) => a.full_name.localeCompare(b.full_name)),
       children: [
         ...data.children.filter((item) => item.person_id !== person.id),
@@ -1531,7 +1537,7 @@ export async function saveChild(
     localWrite(next);
     return generateKidsAuthorizations(next, undefined);
   }
-  await savePerson(data, person);
+  await savePerson(data, personWithInheritedConsent);
   const { error: profileError } = await supabase
     .from("child_profiles")
     .upsert(profile);
@@ -2013,6 +2019,7 @@ export async function submitPublicChurchRegistration(
         active: true,
         consent: {
           ...consentOff,
+          messaging: input.messaging_consent,
           data_processing: input.data_processing_consent,
         },
       };

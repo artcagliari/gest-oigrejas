@@ -15,6 +15,7 @@ import {
   ChevronLeft,
   ChevronRight,
   CircleDollarSign,
+  Download,
   Eye,
   EyeOff,
   FileSignature,
@@ -60,6 +61,7 @@ import {
   FamilyChildInput,
   GroupMembershipHistory,
   KidsGroup,
+  checkInChild,
   generateKidsAuthorizations,
   getOrCreateChurchRegistrationLink,
   deleteDepartment,
@@ -436,6 +438,28 @@ function AuthenticatedApp() {
                 persist(
                   () => generateKidsAuthorizations(workspace, eventId),
                   "Autorizações pendentes geradas para este culto.",
+                )
+              }
+              onCheckIn={(
+                eventId,
+                childId,
+                guardianId,
+                authorizationId,
+                pickupCode,
+              ) =>
+                persist(
+                  () =>
+                    checkInChild(workspace, {
+                      id: newId(),
+                      church_id: churchId,
+                      event_id: eventId,
+                      child_id: childId,
+                      guardian_id: guardianId,
+                      authorization_id: authorizationId,
+                      checkin_at: new Date().toISOString(),
+                      pickup_code: pickupCode,
+                    }),
+                  "Presença da criança registrada.",
                 )
               }
               notify={showToast}
@@ -2507,6 +2531,7 @@ function Kids({
   onDailyAuthorization,
   onKidsGroup,
   onGenerate,
+  onCheckIn,
   notify,
 }: {
   data: WorkspaceData;
@@ -2515,6 +2540,13 @@ function Kids({
   onDailyAuthorization: (childId: string) => void;
   onKidsGroup: (group?: KidsGroup) => void;
   onGenerate: (eventId: string) => void;
+  onCheckIn: (
+    eventId: string,
+    childId: string,
+    guardianId: string,
+    authorizationId: string | undefined,
+    pickupCode: string,
+  ) => void;
   notify: (message: string) => void;
 }) {
   const services = data.events.filter(
@@ -2784,7 +2816,7 @@ function Kids({
               ) : (
                 <div className="card authorization-table kids-group-authorizations">
                   <div className="authorization-head">
-                    <span>Criança e responsável</span>
+                    <span>Criança, responsável e presença</span>
                     <span>Autorização do responsável</span>
                     <span>Escopo autorizado</span>
                     <span>Ações</span>
@@ -2793,6 +2825,18 @@ function Kids({
                     const authorization = authorizations.find(
                       (item) => item.child_id === childId,
                     );
+                    const checkin = data.childCheckins.find(
+                      (item) =>
+                        item.event_id === serviceId &&
+                        item.child_id === childId,
+                    );
+                    const primaryGuardian =
+                      guardianDetails(childId).find(
+                        (item) => item.primary_contact && item.can_pickup,
+                      ) ??
+                      guardianDetails(childId).find(
+                        (item) => item.legal_guardian && item.can_pickup,
+                      );
                     return (
                       <div className="authorization-row" key={childId}>
                         <span className="person-cell">
@@ -2804,6 +2848,15 @@ function Kids({
                               {childPerson(childId)?.full_name ?? "Criança"}
                             </strong>
                             <small>{guardianNames(childId)}</small>
+                            {checkin && (
+                              <small className="kids-present-status">
+                                <ClipboardCheck /> Presente desde{" "}
+                                {dateTime(checkin.checkin_at)}
+                                {checkin.pickup_code
+                                  ? ` • retirada ${checkin.pickup_code}`
+                                  : ""}
+                              </small>
+                            )}
                           </span>
                         </span>
                         <span>
@@ -2860,6 +2913,17 @@ function Kids({
                                 <Share2 /> Copiar autorização
                               </button>
                               <button
+                                className="secondary compact"
+                                onClick={() =>
+                                  downloadChildAuthorization(
+                                    authorization,
+                                    data,
+                                  )
+                                }
+                              >
+                                <Download /> Baixar termo
+                              </button>
+                              <button
                                 className="icon-only"
                                 title="Imprimir autorização"
                                 onClick={() =>
@@ -2883,6 +2947,32 @@ function Kids({
                               onClick={() => onGenerate(serviceId)}
                             >
                               <FileSignature /> Gerar autorizações
+                            </button>
+                          )}
+                          {!checkin && (
+                            <button
+                              className="primary compact"
+                              disabled={!primaryGuardian}
+                              title={
+                                primaryGuardian
+                                  ? "Registrar presença"
+                                  : "Vincule um responsável autorizado para registrar a presença"
+                              }
+                              onClick={() => {
+                                if (!primaryGuardian) return;
+                                const pickupCode = String(
+                                  Math.floor(1000 + Math.random() * 9000),
+                                );
+                                onCheckIn(
+                                  serviceId,
+                                  childId,
+                                  primaryGuardian.guardian_person_id,
+                                  authorization?.id,
+                                  pickupCode,
+                                );
+                              }}
+                            >
+                              <ClipboardCheck /> Dar presença
                             </button>
                           )}
                         </span>
@@ -3032,6 +3122,15 @@ function Kids({
                   onClick={() => printChildAuthorization(authorization, data)}
                 >
                   <Printer />
+                </button>
+                <button
+                  className="icon-only"
+                  title="Baixar autorização"
+                  onClick={() =>
+                    downloadChildAuthorization(authorization, data)
+                  }
+                >
+                  <Download />
                 </button>
                 <button
                   className="secondary compact"
@@ -3205,6 +3304,58 @@ function printChildAuthorization(
   popup.focus();
 }
 
+function downloadChildAuthorization(
+  authorization: ChildAuthorization,
+  data: WorkspaceData,
+) {
+  const child = data.people.find(
+    (person) => person.id === authorization.child_id,
+  );
+  const guardian = data.people.find(
+    (person) => person.id === authorization.guardian_id,
+  );
+  const event = data.events.find((item) => item.id === authorization.event_id);
+  const church = data.churches.find(
+    (item) => item.id === authorization.church_id,
+  );
+  const safe = (value?: string) =>
+    (value ?? "").replace(
+      /[&<>"']/g,
+      (char) =>
+        ({
+          "&": "&amp;",
+          "<": "&lt;",
+          ">": "&gt;",
+          '"': "&quot;",
+          "'": "&#039;",
+        })[char] ?? char,
+    );
+  const pending = authorization.decision === "pending";
+  const html = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Autorização Kids — ${safe(child?.full_name)}</title><style>
+  @page{size:A4;margin:18mm}*{box-sizing:border-box}body{max-width:800px;margin:32px auto;padding:0 24px;font:14px Arial,sans-serif;color:#172b27;line-height:1.5}header{border-bottom:3px solid #177356;padding-bottom:16px;margin-bottom:24px}h1{font-size:22px;margin:0 0 5px}h2{font-size:15px;margin:24px 0 10px}.muted{color:#5d6f69}.box{border:1px solid #cad7d2;border-radius:10px;padding:14px 18px;margin:14px 0}.box p{margin:6px 0}.decision{padding:12px 16px;border-radius:8px;background:${pending ? "#fff5df" : authorization.decision === "authorized" ? "#e5f5ed" : "#fbe7e4"};font-weight:bold}.scopes{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.scope{border:1px solid #cad7d2;border-radius:8px;padding:10px}.code{margin-top:28px;padding-top:12px;border-top:1px solid #d9e2df;font:11px monospace;color:#5d6f69}
+  </style></head><body><header><h1>${pending ? "Termo para manifestação de consentimento" : "Comprovante de consentimento específico"}</h1><div class="muted">Uso de imagem de criança ou adolescente em culto</div></header>
+  <div class="box"><p><strong>Igreja:</strong> ${safe(church?.name)}</p><p><strong>Criança/adolescente:</strong> ${safe(child?.full_name)}</p><p><strong>Responsável legal:</strong> ${safe(authorization.signed_name || guardian?.full_name || "A preencher")}</p><p><strong>Culto:</strong> ${safe(event?.title)} — ${safe(event ? dateTime(event.starts_at) : "")}</p></div>
+  <h2>Finalidade e condições</h2><p>${safe(authorization.consent_text_snapshot)}</p><p class="muted">A decisão é exclusiva para o culto identificado acima. A participação da criança não depende da autorização de imagem.</p>
+  <h2>Decisão e escopos</h2><div class="decision">${pending ? "☐ AUTORIZO   ☐ NÃO AUTORIZO" : authorizationDecision(authorization.decision).toUpperCase()}</div><div class="scopes"><div class="scope">${authorization.allow_photo ? "☑" : "☐"} Fotografia</div><div class="scope">${authorization.allow_video ? "☑" : "☐"} Vídeo</div><div class="scope">${authorization.allow_social_media ? "☑" : "☐"} Redes sociais</div></div>
+  <div class="code">Documento: ${safe(authorization.id)}<br>Versão: ${safe(authorization.consent_version)}<br>${authorization.signed_at ? `Registro eletrônico: ${safe(dateTime(authorization.signed_at))}` : "Documento ainda sem manifestação registrada."}</div></body></html>`;
+  const blobUrl = URL.createObjectURL(
+    new Blob([html], { type: "text/html;charset=utf-8" }),
+  );
+  const link = document.createElement("a");
+  const childName = (child?.full_name ?? "crianca")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
+    .toLowerCase();
+  link.href = blobUrl;
+  link.download = `autorizacao-kids-${childName || "crianca"}.html`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(blobUrl);
+}
+
 function ChildForm({
   churchId,
   people,
@@ -3278,10 +3429,11 @@ function ChildForm({
               ministry_roles: existingPerson?.ministry_roles ?? [],
               group_ids: existingPerson?.group_ids ?? [],
               active: true,
-              consent: existingPerson?.consent ?? {
-                ...emptyConsent,
-                data_processing: true,
-              },
+              consent: existingPerson?.consent ??
+                guardian?.consent ?? {
+                  ...emptyConsent,
+                  data_processing: true,
+                },
             },
             profile: ChildProfile = {
               ...(profiles.find((item) => item.person_id === personId) ?? {}),

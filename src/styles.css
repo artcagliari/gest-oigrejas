@@ -1800,6 +1800,20 @@ nav {
   color: var(--muted);
   background: #edf1ef;
 }
+.person-cell .kids-present-status {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: #17694f;
+  font-weight: 750;
+}
+.kids-present-status svg {
+  width: 13px;
+  height: 13px;
+}
+.kids-group-authorizations .row-actions {
+  flex-wrap: wrap;
+}
 .authorization-table {
   overflow: hidden;
 }

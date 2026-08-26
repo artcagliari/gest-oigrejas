@@ -101,6 +101,7 @@ test("cadastra e abre uma ficha aprofundada", async ({ page }) => {
   await page.getByRole("button", { name: /Continuar/ }).click();
   await expect(page.getByText("Privacidade por padrão")).toBeVisible();
   await page.locator(".consent-form input").first().check();
+  await page.locator(".consent-form input").nth(1).check();
   await page.getByRole("button", { name: /Salvar pessoa/ }).click();
   await expect(page.getByText("Pessoa cadastrada.")).toBeVisible();
   const internalFamily = await page.evaluate(() => {
@@ -123,6 +124,9 @@ test("cadastra e abre uma ficha aprofundada", async ({ page }) => {
     };
   });
   expect(internalFamily.children).toHaveLength(2);
+  expect(internalFamily.children[0].consent).toEqual(
+    internalFamily.parent.consent,
+  );
   expect(internalFamily.children[0].address).toEqual(
     internalFamily.parent.address,
   );
@@ -314,6 +318,15 @@ test("registra autorização infantil específica do culto", async ({ page }) =>
     .getByRole("button", { name: "Ver crianças e autorizações" })
     .click();
   await expect(page.getByText("Aguardando o responsável")).toBeVisible();
+  const downloadPromise = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Baixar termo" }).click();
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toBe(
+    "autorizacao-kids-sofia-ribeiro.html",
+  );
+  await page.getByRole("button", { name: "Dar presença" }).click();
+  await expect(page.getByText("Presença da criança registrada.")).toBeVisible();
+  await expect(page.getByText(/Presente desde/)).toBeVisible();
   await page.getByRole("button", { name: "Voltar para os grupos" }).click();
   await page
     .getByRole("button", { name: "Autorizações por culto", exact: true })
