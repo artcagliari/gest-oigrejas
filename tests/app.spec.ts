@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { readFile } from "node:fs/promises";
 
 test.beforeEach(async ({ page }) => {
   await page.route("https://viacep.com.br/ws/**", async (route) => {
@@ -324,6 +325,11 @@ test("registra autorização infantil específica do culto", async ({ page }) =>
   expect(download.suggestedFilename()).toBe(
     "autorizacao-kids-sofia-ribeiro.html",
   );
+  const downloadedTerm = await readFile((await download.path())!, "utf8");
+  expect(downloadedTerm).toContain("Mariana Ribeiro");
+  expect(downloadedTerm).toContain("Carlos Ribeiro");
+  expect(downloadedTerm).toContain("Responsável legal 1");
+  expect(downloadedTerm).toContain("Responsável legal 2");
   await page.getByRole("button", { name: "Dar presença" }).click();
   await expect(page.getByText("Presença da criança registrada.")).toBeVisible();
   await expect(page.getByText(/Presente desde/)).toBeVisible();

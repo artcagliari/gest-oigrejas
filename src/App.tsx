@@ -3263,15 +3263,44 @@ function formatCpfForDocument(value?: string) {
     ? digits.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4")
     : (value ?? "Não informado");
 }
+function childLegalGuardians(childId: string, data: WorkspaceData) {
+  return data.guardians
+    .filter(
+      (guardian) => guardian.child_id === childId && guardian.legal_guardian,
+    )
+    .sort(
+      (left, right) =>
+        Number(right.primary_contact) - Number(left.primary_contact),
+    )
+    .map((guardian) => ({
+      ...guardian,
+      person: data.people.find(
+        (person) => person.id === guardian.guardian_person_id,
+      ),
+    }))
+    .filter((guardian) => guardian.person);
+}
+function guardianDocumentRows(
+  childId: string,
+  data: WorkspaceData,
+  safe: (value?: string) => string,
+) {
+  const guardians = childLegalGuardians(childId, data);
+  if (!guardians.length)
+    return "<p><strong>Responsáveis legais:</strong> Não vinculados</p>";
+  return guardians
+    .map(
+      (guardian, index) =>
+        `<div class="guardian"><strong>Responsável legal ${index + 1}:</strong> ${safe(guardian.person?.full_name)}${guardian.relationship ? ` — ${safe(guardian.relationship)}` : ""}<br><span>CPF: ${safe(formatCpfForDocument(guardian.person?.document_cpf))} • Telefone: ${safe(guardian.person?.phone_primary || "Não informado")}</span></div>`,
+    )
+    .join("");
+}
 function printChildAuthorization(
   authorization: ChildAuthorization,
   data: WorkspaceData,
 ) {
   const child = data.people.find(
       (person) => person.id === authorization.child_id,
-    ),
-    guardian = data.people.find(
-      (person) => person.id === authorization.guardian_id,
     ),
     event = data.events.find((item) => item.id === authorization.event_id),
     church = data.churches.find((item) => item.id === authorization.church_id),
@@ -3290,11 +3319,12 @@ function printChildAuthorization(
         })[char] ?? char,
     );
   const pending = authorization.decision === "pending";
+  const guardianRows = guardianDocumentRows(authorization.child_id, data, safe);
   popup.document
     .write(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Termo de consentimento Kids</title><style>
-    @page{size:A4;margin:18mm}*{box-sizing:border-box}body{font:14px Arial,sans-serif;color:#172b27;margin:0;line-height:1.5}header{border-bottom:3px solid #177356;padding-bottom:16px;margin-bottom:24px}h1{font-size:22px;margin:0 0 5px}h2{font-size:15px;margin:24px 0 10px}.muted{color:#5d6f69}.box{border:1px solid #cad7d2;border-radius:10px;padding:14px 18px;margin:14px 0}.box p{margin:6px 0}.decision{padding:12px 16px;border-radius:8px;background:${pending ? "#fff5df" : authorization.decision === "authorized" ? "#e5f5ed" : "#fbe7e4"};font-weight:bold}.scopes{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.scope{border:1px solid #cad7d2;border-radius:8px;padding:10px}.signature-grid{display:grid;grid-template-columns:1fr 1fr;gap:36px;margin-top:62px}.signature{border-top:1px solid #172b27;padding-top:7px}.code{margin-top:28px;padding-top:12px;border-top:1px solid #d9e2df;font:11px monospace;color:#5d6f69}button{margin-top:24px;padding:10px 18px}@media print{button{display:none}}
+    @page{size:A4;margin:18mm}*{box-sizing:border-box}body{font:14px Arial,sans-serif;color:#172b27;margin:0;line-height:1.5}header{border-bottom:3px solid #177356;padding-bottom:16px;margin-bottom:24px}h1{font-size:22px;margin:0 0 5px}h2{font-size:15px;margin:24px 0 10px}.muted{color:#5d6f69}.box{border:1px solid #cad7d2;border-radius:10px;padding:14px 18px;margin:14px 0}.box p{margin:6px 0}.guardian{margin-top:10px;padding-top:10px;border-top:1px solid #e2e9e6}.guardian span{color:#5d6f69;font-size:12px}.decision{padding:12px 16px;border-radius:8px;background:${pending ? "#fff5df" : authorization.decision === "authorized" ? "#e5f5ed" : "#fbe7e4"};font-weight:bold}.scopes{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.scope{border:1px solid #cad7d2;border-radius:8px;padding:10px}.signature-grid{display:grid;grid-template-columns:1fr 1fr;gap:36px;margin-top:62px}.signature{border-top:1px solid #172b27;padding-top:7px}.code{margin-top:28px;padding-top:12px;border-top:1px solid #d9e2df;font:11px monospace;color:#5d6f69}button{margin-top:24px;padding:10px 18px}@media print{button{display:none}}
   </style></head><body><header><h1>${pending ? "Termo para manifestação de consentimento" : "Comprovante de consentimento específico"}</h1><div class="muted">Uso de imagem de criança ou adolescente em culto</div></header>
-  <div class="box"><p><strong>Igreja:</strong> ${safe(church?.name)}</p><p><strong>Criança/adolescente:</strong> ${safe(child?.full_name)}</p><p><strong>Data de nascimento:</strong> ${safe(child?.birth_date ? new Date(`${child.birth_date}T12:00:00`).toLocaleDateString("pt-BR") : "Não informada")}</p><p><strong>Responsável legal:</strong> ${safe(authorization.signed_name || guardian?.full_name || "A preencher")}</p><p><strong>Culto:</strong> ${safe(event?.title)} — ${safe(event ? dateTime(event.starts_at) : "")}</p></div>
+  <div class="box"><p><strong>Igreja:</strong> ${safe(church?.name)}</p><p><strong>Criança/adolescente:</strong> ${safe(child?.full_name)}</p><p><strong>Data de nascimento:</strong> ${safe(child?.birth_date ? new Date(`${child.birth_date}T12:00:00`).toLocaleDateString("pt-BR") : "Não informada")}</p><p><strong>Culto:</strong> ${safe(event?.title)} — ${safe(event ? dateTime(event.starts_at) : "")}</p>${guardianRows}</div>
   <h2>Finalidade e condições</h2><p>${safe(authorization.consent_text_snapshot)}</p><p class="muted">A decisão é exclusiva para o culto identificado acima. A participação da criança não depende da autorização de imagem. O responsável poderá solicitar a revogação conforme a legislação aplicável.</p>
   <h2>Decisão e escopos</h2><div class="decision">${pending ? "☐ AUTORIZO   ☐ NÃO AUTORIZO" : authorizationDecision(authorization.decision).toUpperCase()}</div><div class="scopes"><div class="scope">${authorization.allow_photo ? "☑" : "☐"} Fotografia</div><div class="scope">${authorization.allow_video ? "☑" : "☐"} Gravação em vídeo</div><div class="scope">${authorization.allow_social_media ? "☑" : "☐"} Publicação nas redes sociais</div></div>
   <div class="signature-grid"><div class="signature">${safe(authorization.signed_name || "Assinatura do responsável legal")}</div><div class="signature">Data e hora</div></div>
@@ -3310,9 +3340,6 @@ function downloadChildAuthorization(
 ) {
   const child = data.people.find(
     (person) => person.id === authorization.child_id,
-  );
-  const guardian = data.people.find(
-    (person) => person.id === authorization.guardian_id,
   );
   const event = data.events.find((item) => item.id === authorization.event_id);
   const church = data.churches.find(
@@ -3331,10 +3358,11 @@ function downloadChildAuthorization(
         })[char] ?? char,
     );
   const pending = authorization.decision === "pending";
+  const guardianRows = guardianDocumentRows(authorization.child_id, data, safe);
   const html = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Autorização Kids — ${safe(child?.full_name)}</title><style>
-  @page{size:A4;margin:18mm}*{box-sizing:border-box}body{max-width:800px;margin:32px auto;padding:0 24px;font:14px Arial,sans-serif;color:#172b27;line-height:1.5}header{border-bottom:3px solid #177356;padding-bottom:16px;margin-bottom:24px}h1{font-size:22px;margin:0 0 5px}h2{font-size:15px;margin:24px 0 10px}.muted{color:#5d6f69}.box{border:1px solid #cad7d2;border-radius:10px;padding:14px 18px;margin:14px 0}.box p{margin:6px 0}.decision{padding:12px 16px;border-radius:8px;background:${pending ? "#fff5df" : authorization.decision === "authorized" ? "#e5f5ed" : "#fbe7e4"};font-weight:bold}.scopes{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.scope{border:1px solid #cad7d2;border-radius:8px;padding:10px}.code{margin-top:28px;padding-top:12px;border-top:1px solid #d9e2df;font:11px monospace;color:#5d6f69}
+  @page{size:A4;margin:18mm}*{box-sizing:border-box}body{max-width:800px;margin:32px auto;padding:0 24px;font:14px Arial,sans-serif;color:#172b27;line-height:1.5}header{border-bottom:3px solid #177356;padding-bottom:16px;margin-bottom:24px}h1{font-size:22px;margin:0 0 5px}h2{font-size:15px;margin:24px 0 10px}.muted{color:#5d6f69}.box{border:1px solid #cad7d2;border-radius:10px;padding:14px 18px;margin:14px 0}.box p{margin:6px 0}.guardian{margin-top:10px;padding-top:10px;border-top:1px solid #e2e9e6}.guardian span{color:#5d6f69;font-size:12px}.decision{padding:12px 16px;border-radius:8px;background:${pending ? "#fff5df" : authorization.decision === "authorized" ? "#e5f5ed" : "#fbe7e4"};font-weight:bold}.scopes{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.scope{border:1px solid #cad7d2;border-radius:8px;padding:10px}.code{margin-top:28px;padding-top:12px;border-top:1px solid #d9e2df;font:11px monospace;color:#5d6f69}
   </style></head><body><header><h1>${pending ? "Termo para manifestação de consentimento" : "Comprovante de consentimento específico"}</h1><div class="muted">Uso de imagem de criança ou adolescente em culto</div></header>
-  <div class="box"><p><strong>Igreja:</strong> ${safe(church?.name)}</p><p><strong>Criança/adolescente:</strong> ${safe(child?.full_name)}</p><p><strong>Responsável legal:</strong> ${safe(authorization.signed_name || guardian?.full_name || "A preencher")}</p><p><strong>Culto:</strong> ${safe(event?.title)} — ${safe(event ? dateTime(event.starts_at) : "")}</p></div>
+  <div class="box"><p><strong>Igreja:</strong> ${safe(church?.name)}</p><p><strong>Criança/adolescente:</strong> ${safe(child?.full_name)}</p><p><strong>Culto:</strong> ${safe(event?.title)} — ${safe(event ? dateTime(event.starts_at) : "")}</p>${guardianRows}</div>
   <h2>Finalidade e condições</h2><p>${safe(authorization.consent_text_snapshot)}</p><p class="muted">A decisão é exclusiva para o culto identificado acima. A participação da criança não depende da autorização de imagem.</p>
   <h2>Decisão e escopos</h2><div class="decision">${pending ? "☐ AUTORIZO   ☐ NÃO AUTORIZO" : authorizationDecision(authorization.decision).toUpperCase()}</div><div class="scopes"><div class="scope">${authorization.allow_photo ? "☑" : "☐"} Fotografia</div><div class="scope">${authorization.allow_video ? "☑" : "☐"} Vídeo</div><div class="scope">${authorization.allow_social_media ? "☑" : "☐"} Redes sociais</div></div>
   <div class="code">Documento: ${safe(authorization.id)}<br>Versão: ${safe(authorization.consent_version)}<br>${authorization.signed_at ? `Registro eletrônico: ${safe(dateTime(authorization.signed_at))}` : "Documento ainda sem manifestação registrada."}</div></body></html>`;
