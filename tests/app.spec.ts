@@ -312,6 +312,15 @@ test("Gestor Geral atribui cargo e liderança no departamento", async ({
   const claraAssignment = page
     .locator(".department-assignments > div")
     .filter({ hasText: "Clara Souza" });
+  const assignmentBox = await claraAssignment.boundingBox();
+  const removeBox = await claraAssignment
+    .getByRole("button", { name: "Remover Clara Souza" })
+    .boundingBox();
+  expect(assignmentBox).not.toBeNull();
+  expect(removeBox).not.toBeNull();
+  expect(removeBox!.x + removeBox!.width).toBeLessThanOrEqual(
+    assignmentBox!.x + assignmentBox!.width,
+  );
   await claraAssignment
     .getByRole("checkbox", { name: "Pode gerenciar" })
     .check();
