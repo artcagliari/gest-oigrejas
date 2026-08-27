@@ -167,7 +167,16 @@ test("cadastra e abre uma ficha aprofundada", async ({ page }) => {
   await expect(
     page.getByText("Consolidação Essencial", { exact: true }),
   ).toHaveCount(2);
-  await expect(page.getByText("Histórico de grupos")).toBeVisible();
+  const teachingGroupsCard = page.locator(".info-card").filter({
+    has: page.getByRole("heading", { name: "Grupos de ensino", exact: true }),
+  });
+  await expect(teachingGroupsCard.getByText(/Cargo: Aluno\(a\)/)).toBeVisible();
+  const teachingHistoryCard = page.locator(".info-card").filter({
+    has: page.getByRole("heading", {
+      name: "Histórico de grupos de ensino",
+    }),
+  });
+  await expect(teachingHistoryCard.getByText(/Entrou no grupo/)).toBeVisible();
 });
 
 test("abre cadastros de ensino, agenda e financeiro", async ({ page }) => {
@@ -181,6 +190,17 @@ test("abre cadastros de ensino, agenda e financeiro", async ({ page }) => {
   await page.getByRole("button", { name: "Agenda", exact: true }).click();
   await page.getByRole("button", { name: "Lista" }).click();
   await expect(page.getByText("Culto de celebração")).toBeVisible();
+  await page
+    .getByRole("button", { name: "Editar Culto de celebração" })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "Editar compromisso" }),
+  ).toBeVisible();
+  await expect(page.getByLabel("Título")).toHaveValue("Culto de celebração");
+  await page.getByLabel("Local").fill("Templo principal");
+  await page.getByRole("button", { name: "Salvar" }).click();
+  await expect(page.getByText("Compromisso atualizado.")).toBeVisible();
+  await expect(page.getByText(/Templo principal/)).toBeVisible();
   await page.getByRole("button", { name: "Financeiro", exact: true }).click();
   await page.getByRole("button", { name: "Nova", exact: true }).first().click();
   await expect(page.getByRole("heading", { name: "Nova conta" })).toBeVisible();
@@ -253,12 +273,35 @@ test("Gestor Geral atribui cargo e liderança no departamento", async ({
   await page
     .getByRole("button", { name: "Departamentos", exact: true })
     .click();
+  await page.getByRole("button", { name: "Novo departamento" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Criar novo departamento" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Usar modelo Louvor" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Criar departamento personalizado" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Usar modelo Louvor" }).click();
+  await expect(page.getByLabel("Nome do departamento")).toHaveValue("Louvor");
+  await expect(page.getByLabel("Modelo")).toHaveValue("worship");
+  await expect(
+    page.locator('input[value="Regente / maestro(a)"]'),
+  ).toHaveCount(1);
+  await page.getByLabel("Novo cargo ou função").fill("Compositor(a)");
+  await page.getByRole("button", { name: "Adicionar" }).click();
+  await expect(page.locator('input[value="Compositor(a)"]')).toHaveCount(1);
+  await page.getByRole("button", { name: "Cancelar" }).click();
   const louvor = page.locator(".department-card").filter({
     hasText: "Ministério de Louvor",
   });
   await louvor
     .getByRole("button", { name: /Gerenciar equipe e cargos/ })
     .click();
+  await page
+    .getByRole("searchbox", { name: "Buscar participante pelo nome" })
+    .fill("Clara Souza");
   await page
     .locator("label.check-card")
     .filter({ hasText: "Clara Souza" })
@@ -276,6 +319,15 @@ test("Gestor Geral atribui cargo e liderança no departamento", async ({
   await expect(page.getByText("Departamento atualizado.")).toBeVisible();
   await expect(louvor.getByText("Clara Souza")).toBeVisible();
   await expect(louvor.getByText(/Músico\(a\).*Líder gestor/)).toBeVisible();
+  await page.getByRole("button", { name: "Pessoas", exact: true }).click();
+  await page.getByText("Clara Souza", { exact: true }).click();
+  const departmentsCard = page.locator(".info-card").filter({
+    has: page.getByRole("heading", { name: "Departamentos" }),
+  });
+  await expect(departmentsCard.getByText("Ministério de Louvor")).toBeVisible();
+  await expect(
+    departmentsCard.getByText(/Cargo: Músico\(a\).*Líder gestor/),
+  ).toBeVisible();
 });
 
 test("registra autorização infantil específica do culto", async ({ page }) => {
@@ -328,6 +380,8 @@ test("registra autorização infantil específica do culto", async ({ page }) =>
   await expect(
     printPopup.getByText("Assinatura de Carlos Ribeiro"),
   ).toBeVisible();
+  await expect(printPopup.getByText(/CPF:/).first()).toBeVisible();
+  await expect(printPopup.getByText(/Carlos Barbosa,/)).toBeVisible();
   await expect(
     printPopup.getByRole("button", { name: "Imprimir / salvar em PDF" }),
   ).toBeVisible();
@@ -345,6 +399,8 @@ test("registra autorização infantil específica do culto", async ({ page }) =>
   expect(downloadedTerm).toContain("Responsável legal 2");
   expect(downloadedTerm).toContain("Assinatura de Mariana Ribeiro");
   expect(downloadedTerm).toContain("Assinatura de Carlos Ribeiro");
+  expect(downloadedTerm).toContain("<strong>CPF:</strong>");
+  expect(downloadedTerm).toContain("Carlos Barbosa,");
   expect(downloadedTerm).toContain("Imprimir / salvar em PDF");
   await page.getByRole("button", { name: "Dar presença" }).click();
   await expect(page.getByText("Presença da criança registrada.")).toBeVisible();

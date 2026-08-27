@@ -951,25 +951,33 @@ nav {
 .calendar-day:nth-child(7n) {
   border-right: 0;
 }
-.calendar-day > span {
+.calendar-day-add {
   display: grid;
   place-items: center;
   margin-left: auto;
   width: 26px;
   height: 26px;
+  padding: 0;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  border-radius: 50%;
   font-size: 12px;
+  cursor: pointer;
 }
 .calendar-day.today {
   background: #f6faf8;
 }
-.calendar-day.today > span {
+.calendar-day.today .calendar-day-add {
   background: var(--green);
   color: #fff;
   border-radius: 50%;
 }
 .cal-event {
   display: block;
+  width: 100%;
   padding: 6px;
+  border: 0;
   border-radius: 5px;
   background: #deeee7;
   color: #1f6c59;
@@ -977,6 +985,8 @@ nav {
   margin-top: 5px;
   white-space: nowrap;
   overflow: hidden;
+  text-align: left;
+  cursor: pointer;
 }
 .cal-event.blue {
   background: #e3edf5;
@@ -1567,7 +1577,7 @@ nav {
     min-height: 80px;
     padding: 4px;
   }
-  .calendar-day > span {
+  .calendar-day-add {
     width: 20px;
     height: 20px;
   }
@@ -2086,15 +2096,101 @@ button.danger svg {
 .department-people-picker {
   margin-top: 12px;
 }
+.department-template-picker {
+  padding: 18px 24px 24px;
+}
+.department-template-picker > p {
+  margin: 0 0 14px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.department-template-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.department-template-card {
+  min-height: 105px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 10px;
+  padding: 16px;
+  color: var(--ink);
+  background: #fff;
+  border: 1px solid #dce4e1;
+  border-radius: 12px;
+  box-shadow: 0 3px 9px rgba(25, 56, 49, 0.08);
+  cursor: pointer;
+  transition:
+    border-color 0.18s,
+    transform 0.18s,
+    box-shadow 0.18s;
+}
+.department-template-card:hover {
+  border-color: #168dcc;
+  box-shadow: 0 6px 14px rgba(22, 141, 204, 0.15);
+  transform: translateY(-2px);
+}
+.department-template-card svg {
+  width: 23px;
+  height: 23px;
+  color: #168dcc;
+  stroke-width: 1.8;
+}
+.department-template-card strong {
+  font-size: 11px;
+}
+.department-template-card.custom {
+  color: #fff;
+  background: #168dcc;
+  border-color: #168dcc;
+}
+.department-template-card.custom svg {
+  color: #fff;
+}
 .department-people-picker > strong {
   display: block;
   margin-bottom: 9px;
   font-size: 12px;
 }
+.department-person-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  color: #8b9995;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+}
+.department-person-search svg {
+  width: 18px;
+  flex: 0 0 auto;
+}
+.department-people-picker .department-person-search input {
+  padding: 11px 0;
+  margin: 0;
+  border: 0;
+  outline: 0;
+}
+.department-search-results {
+  margin-top: 8px;
+}
+.department-search-empty {
+  display: block;
+  padding: 10px 2px 0;
+  color: var(--muted);
+}
 .department-assignments {
   display: grid;
   gap: 8px;
   margin-top: 14px;
+}
+.department-selected-count {
+  color: var(--muted);
+  font-weight: 700;
 }
 .department-form-scroll {
   max-height: 66vh;
@@ -2102,7 +2198,7 @@ button.danger svg {
 }
 .department-assignments > div {
   display: grid;
-  grid-template-columns: minmax(190px, 1fr) minmax(140px, 0.55fr) auto;
+  grid-template-columns: minmax(190px, 1fr) minmax(140px, 0.55fr) auto auto;
   align-items: center;
   gap: 10px;
   padding: 10px;
@@ -2129,6 +2225,117 @@ button.danger svg {
   width: auto;
   margin: 0;
   accent-color: var(--green);
+}
+.department-remove-person {
+  color: #a54a43;
+}
+.department-remove-person svg {
+  width: 17px;
+}
+.department-role-editor {
+  padding: 15px;
+  margin-top: 14px;
+  background: #f7f9f8;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+.department-role-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.department-role-heading span,
+.department-role-heading strong,
+.department-role-heading small {
+  display: block;
+}
+.department-role-heading strong {
+  font-size: 12px;
+}
+.department-role-heading small {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 9px;
+}
+.department-role-heading b {
+  min-width: 27px;
+  padding: 5px 8px;
+  color: #16785b;
+  background: #dff2e9;
+  border-radius: 999px;
+  font-size: 10px;
+  text-align: center;
+}
+.department-role-list {
+  display: grid;
+  gap: 6px;
+  max-height: 280px;
+  padding-right: 4px;
+  overflow-y: auto;
+}
+.department-role-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 35px;
+  align-items: center;
+  min-height: 38px;
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid #dce4e1;
+  border-radius: 8px;
+}
+.department-role-row.locked {
+  padding-left: 11px;
+  color: #334a44;
+  background: #e8eeeb;
+  border-color: #e0e7e4;
+  font-size: 11px;
+  font-weight: 800;
+}
+.department-role-row.locked svg {
+  width: 15px;
+  color: var(--green);
+}
+.department-role-editor .department-role-row input {
+  padding: 10px 11px;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  outline: 0;
+  font-size: 11px;
+}
+.department-role-remove {
+  width: 35px;
+  height: 100%;
+  padding: 0;
+  color: #d34b5c;
+  border-left: 1px solid #edf1ef;
+  border-radius: 0;
+}
+.department-role-remove:hover {
+  background: #fff0f2;
+}
+.department-role-remove svg {
+  width: 14px;
+}
+.department-role-add {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  margin-top: 10px;
+}
+.department-role-editor .department-role-add input {
+  margin: 0;
+}
+.department-role-add button {
+  margin: 0;
+}
+.department-role-warning {
+  display: block;
+  margin-top: 6px;
+  color: #a04b43;
+  font-size: 9px;
 }
 .department-member-preview {
   display: grid;
@@ -3073,6 +3280,12 @@ button.danger svg {
 }
 .calendar-day:hover {
   background: #f5f9f7;
+}
+.event-edit-button {
+  flex: 0 0 auto;
+}
+.event-edit-button svg {
+  width: 14px;
 }
 .transaction-table {
   overflow: auto;

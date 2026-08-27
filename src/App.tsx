@@ -19,13 +19,19 @@ import {
   Eye,
   EyeOff,
   FileSignature,
+  Flame,
   GraduationCap,
+  Globe,
+  Hand,
+  Heart,
   LayoutDashboard,
   LoaderCircle,
   LockKeyhole,
   LogOut,
   Mail,
   Menu,
+  Monitor,
+  Music,
   Pencil,
   Phone,
   Plus,
@@ -129,7 +135,7 @@ type Modal =
   | { type: "department-delete"; department: Department }
   | { type: "person-delete"; person: Person }
   | { type: "teaching-meeting"; group: TeachingGroup }
-  | { type: "event"; date?: string }
+  | { type: "event"; date?: string; event?: ChurchEvent }
   | { type: "finance" }
   | { type: "finance-account" }
   | { type: "finance-category" }
@@ -497,6 +503,7 @@ function AuthenticatedApp() {
             <Agenda
               events={workspace.events}
               onAdd={(date) => setModal({ type: "event", date })}
+              onEdit={(event) => setModal({ type: "event", event })}
             />
           )}
           {churchId && displayPage === "Financeiro" && (
@@ -675,11 +682,14 @@ function AuthenticatedApp() {
         <EventForm
           churchId={churchId}
           initialDate={modal.date}
+          initial={modal.event}
           onClose={() => setModal(null)}
           onSave={(event) =>
             persist(
               () => saveEvent(workspace, event),
-              "Compromisso adicionado.",
+              modal.event
+                ? "Compromisso atualizado."
+                : "Compromisso adicionado.",
             )
           }
         />
@@ -1604,6 +1614,16 @@ function PersonDetail({
     personGroups = groups.filter((group) =>
       person.group_ids.includes(group.id),
     ),
+    personDepartments = data.departmentMembers
+      .filter((member) => member.person_id === person.id && member.active)
+      .map((member) => ({
+        ...member,
+        department: data.departments.find(
+          (department) => department.id === member.department_id,
+        ),
+        role: data.departmentRoles.find((role) => role.id === member.role_id),
+      }))
+      .filter((membership) => membership.department),
     isChild =
       (age !== null && age < 18) ||
       person.categories.some((category) =>
@@ -1788,6 +1808,37 @@ function PersonDetail({
           />
           <section className="card info-card">
             <h2>
+              <Building2 />
+              Departamentos
+            </h2>
+            {personDepartments.map((membership) => (
+              <div
+                className="simple-row"
+                key={membership.department_id}
+              >
+                <span className="metric-icon">
+                  <Building2 />
+                </span>
+                <span>
+                  <strong>{membership.department?.name}</strong>
+                  <small>
+                    Cargo: {membership.role?.title ?? "Não informado"}
+                    {membership.can_manage ? " • Líder gestor" : ""}
+                    {membership.joined_at
+                      ? ` • Desde ${formatDate(membership.joined_at)}`
+                      : ""}
+                  </small>
+                </span>
+              </div>
+            ))}
+            {!personDepartments.length && (
+              <p className="inline-empty">
+                Nenhum departamento vinculado.
+              </p>
+            )}
+          </section>
+          <section className="card info-card">
+            <h2>
               <GraduationCap />
               Grupos de ensino
             </h2>
@@ -1798,7 +1849,9 @@ function PersonDetail({
                 </span>
                 <span>
                   <strong>{g.name}</strong>
-                  <small>{g.track}</small>
+                  <small>
+                    {g.track} • Cargo: {person.group_roles?.[g.id] ?? "Aluno(a)"}
+                  </small>
                 </span>
               </div>
             ))}
@@ -1809,7 +1862,7 @@ function PersonDetail({
           <section className="card info-card">
             <h2>
               <ClipboardCheck />
-              Histórico de grupos
+              Histórico de grupos de ensino
             </h2>
             {groupHistory.map((entry) => (
               <div className="simple-row" key={entry.id}>
@@ -1819,7 +1872,9 @@ function PersonDetail({
                 <span>
                   <strong>{entry.group_name}</strong>
                   <small>
-                    {entry.action === "joined" ? "Entrada" : "Saída"}
+                    {entry.action === "joined"
+                      ? "Entrou no grupo"
+                      : "Saiu do grupo"}
                     {entry.role_title ? ` • ${entry.role_title}` : ""} •{" "}
                     {dateTime(entry.occurred_at)}
                   </small>
@@ -1827,7 +1882,9 @@ function PersonDetail({
               </div>
             ))}
             {!groupHistory.length && (
-              <p className="inline-empty">Nenhuma movimentação registrada.</p>
+              <p className="inline-empty">
+                Nenhuma participação em grupo registrada.
+              </p>
             )}
           </section>
         </div>
@@ -2072,10 +2129,15 @@ function PersonForm({
                 <div className="form-grid">
                   <Field
                     label="Nome completo"
-                    wide
                     required
                     value={form.full_name}
                     onChange={(v) => set("full_name", v)}
+                  />
+                  <Field
+                    label="CPF"
+                    required
+                    value={form.document_cpf}
+                    onChange={(v) => set("document_cpf", maskCpf(v))}
                   />
                   <Field
                     label="Data de nascimento"
@@ -2130,12 +2192,6 @@ function PersonForm({
                       onChange={(v) => set("spouse_name", v)}
                     />
                   )}
-                  <Field
-                    label="CPF"
-                    required
-                    value={form.document_cpf}
-                    onChange={(v) => set("document_cpf", maskCpf(v))}
-                  />
                 </div>
               </FormSection>
               <FormSection title="Filhos">
@@ -3223,7 +3279,7 @@ function printGeneralChildConsent(profile: ChildProfile, data: WorkspaceData) {
     .write(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Autorização Kids — ${safe(child?.full_name)}</title><style>
     @page{size:A4;margin:16mm}*{box-sizing:border-box}body{font:14px Arial,sans-serif;color:#172b27;margin:0;line-height:1.48}header{border-bottom:3px solid #177356;padding-bottom:14px;margin-bottom:20px}h1{font-size:21px;margin:0 0 4px}h2{font-size:14px;margin:20px 0 8px}.muted{color:#5d6f69}.box{border:1px solid #cad7d2;border-radius:9px;padding:12px 16px;margin:12px 0}.box p{margin:5px 0}.choices{display:grid;gap:8px;margin:12px 0}.choice{border:1px solid #cad7d2;border-radius:8px;padding:9px 12px}.notice{padding:11px 13px;background:#f4f8f6;border-radius:8px}.signature-grid{display:grid;grid-template-columns:1fr 1fr;gap:32px;margin-top:52px}.signature{border-top:1px solid #172b27;padding-top:6px}.footer{margin-top:24px;padding-top:10px;border-top:1px solid #d9e2df;font-size:10px;color:#5d6f69}button{margin-top:18px;padding:10px 18px}@media print{button{display:none}}
   </style></head><body><header><h1>Termo físico de autorização de uso de imagem</h1><div class="muted">Válido exclusivamente para o culto de ${safe(documentDate)}</div></header>
-  <div class="box"><p><strong>Igreja:</strong> ${safe(church?.name)}</p><p><strong>Culto:</strong> ${safe(todayService?.title || "Culto do dia")} — ${safe(documentDate)}</p><p><strong>Criança/adolescente:</strong> ${safe(child?.full_name)}</p><p><strong>Data de nascimento:</strong> ${safe(birthDate)}</p>${guardianRows}</div>
+  <div class="box"><p><strong>Igreja:</strong> ${safe(church?.name)}</p><p><strong>Culto:</strong> ${safe(todayService?.title || "Culto do dia")} — ${safe(documentDate)}</p><p><strong>Criança/adolescente:</strong> ${safe(child?.full_name)}</p><p><strong>CPF:</strong> ${safe(formatCpfForDocument(child?.document_cpf))}</p><p><strong>Data de nascimento:</strong> ${safe(birthDate)}</p>${guardianRows}</div>
   <h2>Manifestação do responsável</h2><p>Declaro ser pai, mãe ou responsável legal pela criança ou adolescente acima identificado e que recebi informações claras sobre a captação e o uso de sua imagem exclusivamente durante o culto realizado nesta data.</p>
   <div class="choices"><div class="choice">☐ AUTORIZO fotografias durante o culto de ${safe(documentDate)}.</div><div class="choice">☐ AUTORIZO gravações em vídeo durante o culto de ${safe(documentDate)}.</div><div class="choice">☐ AUTORIZO a publicação das imagens deste culto nos canais e redes sociais oficiais da igreja.</div><div class="choice">☐ NÃO AUTORIZO a captação nem a publicação de imagem.</div></div>
   <p class="notice"><strong>Validade:</strong> somente para o culto de ${safe(documentDate)}. Este termo não autoriza o uso de imagem em cultos ou eventos futuros. A participação da criança ou adolescente não depende desta autorização. O documento deverá ser arquivado fisicamente pela igreja.</p>
@@ -3238,6 +3294,13 @@ function formatCpfForDocument(value?: string) {
   return digits.length === 11
     ? digits.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4")
     : (value ?? "Não informado");
+}
+function documentLocationDate(date = new Date()) {
+  return `Carlos Barbosa, ${date.toLocaleDateString("pt-BR", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  })}`;
 }
 function childLegalGuardians(childId: string, data: WorkspaceData) {
   return data.guardians
@@ -3285,7 +3348,7 @@ function guardianSignatureRows(
         )
         .join("")
     : '<div class="signature">Assinatura do responsável legal</div>';
-  return `${signatures}<div class="signature">Local e data</div>`;
+  return `${signatures}<div class="signature">${safe(documentLocationDate())}</div>`;
 }
 function printChildAuthorization(
   authorization: ChildAuthorization,
@@ -3321,7 +3384,7 @@ function printChildAuthorization(
     .write(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Termo de consentimento Kids</title><style>
     @page{size:A4;margin:18mm}*{box-sizing:border-box}body{font:14px Arial,sans-serif;color:#172b27;margin:0;line-height:1.5}header{border-bottom:3px solid #177356;padding-bottom:16px;margin-bottom:24px}h1{font-size:22px;margin:0 0 5px}h2{font-size:15px;margin:24px 0 10px}.muted{color:#5d6f69}.box{border:1px solid #cad7d2;border-radius:10px;padding:14px 18px;margin:14px 0}.box p{margin:6px 0}.guardian{margin-top:10px;padding-top:10px;border-top:1px solid #e2e9e6}.guardian span{color:#5d6f69;font-size:12px}.decision{padding:12px 16px;border-radius:8px;background:${pending ? "#fff5df" : authorization.decision === "authorized" ? "#e5f5ed" : "#fbe7e4"};font-weight:bold}.scopes{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.scope{border:1px solid #cad7d2;border-radius:8px;padding:10px}.signature-grid{display:grid;grid-template-columns:1fr 1fr;gap:36px;margin-top:62px}.signature{border-top:1px solid #172b27;padding-top:7px}.code{margin-top:28px;padding-top:12px;border-top:1px solid #d9e2df;font:11px monospace;color:#5d6f69}button{margin-top:24px;padding:10px 18px}@media print{button{display:none}}
   </style></head><body><header><h1>${pending ? "Termo para manifestação de consentimento" : "Comprovante de consentimento específico"}</h1><div class="muted">Uso de imagem de criança ou adolescente em culto</div></header>
-  <div class="box"><p><strong>Igreja:</strong> ${safe(church?.name)}</p><p><strong>Criança/adolescente:</strong> ${safe(child?.full_name)}</p><p><strong>Data de nascimento:</strong> ${safe(child?.birth_date ? new Date(`${child.birth_date}T12:00:00`).toLocaleDateString("pt-BR") : "Não informada")}</p><p><strong>Culto:</strong> ${safe(event?.title)} — ${safe(event ? dateTime(event.starts_at) : "")}</p>${guardianRows}</div>
+  <div class="box"><p><strong>Igreja:</strong> ${safe(church?.name)}</p><p><strong>Criança/adolescente:</strong> ${safe(child?.full_name)}</p><p><strong>CPF:</strong> ${safe(formatCpfForDocument(child?.document_cpf))}</p><p><strong>Data de nascimento:</strong> ${safe(child?.birth_date ? new Date(`${child.birth_date}T12:00:00`).toLocaleDateString("pt-BR") : "Não informada")}</p><p><strong>Culto:</strong> ${safe(event?.title)} — ${safe(event ? dateTime(event.starts_at) : "")}</p>${guardianRows}</div>
   <h2>Finalidade e condições</h2><p>${safe(authorization.consent_text_snapshot)}</p><p class="muted">A decisão é exclusiva para o culto identificado acima. A participação da criança não depende da autorização de imagem. O responsável poderá solicitar a revogação conforme a legislação aplicável.</p>
   <h2>Decisão e escopos</h2><div class="decision">${pending ? "☐ AUTORIZO   ☐ NÃO AUTORIZO" : authorizationDecision(authorization.decision).toUpperCase()}</div><div class="scopes"><div class="scope">${authorization.allow_photo ? "☑" : "☐"} Fotografia</div><div class="scope">${authorization.allow_video ? "☑" : "☐"} Gravação em vídeo</div><div class="scope">${authorization.allow_social_media ? "☑" : "☐"} Publicação nas redes sociais</div></div>
   <h2>Assinaturas dos responsáveis</h2><div class="signature-grid">${signatureRows}</div>
@@ -3364,7 +3427,7 @@ function downloadChildAuthorization(
   const html = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Autorização Kids — ${safe(child?.full_name)}</title><style>
   @page{size:A4;margin:18mm}*{box-sizing:border-box}body{max-width:800px;margin:32px auto;padding:0 24px;font:14px Arial,sans-serif;color:#172b27;line-height:1.5}header{border-bottom:3px solid #177356;padding-bottom:16px;margin-bottom:24px}h1{font-size:22px;margin:0 0 5px}h2{font-size:15px;margin:24px 0 10px}.muted{color:#5d6f69}.box{border:1px solid #cad7d2;border-radius:10px;padding:14px 18px;margin:14px 0}.box p{margin:6px 0}.guardian{margin-top:10px;padding-top:10px;border-top:1px solid #e2e9e6}.guardian span{color:#5d6f69;font-size:12px}.decision{padding:12px 16px;border-radius:8px;background:${pending ? "#fff5df" : authorization.decision === "authorized" ? "#e5f5ed" : "#fbe7e4"};font-weight:bold}.scopes{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.scope{border:1px solid #cad7d2;border-radius:8px;padding:10px}.signature-grid{display:grid;grid-template-columns:1fr 1fr;gap:36px 24px;margin-top:52px}.signature{border-top:1px solid #172b27;padding-top:7px}.code{margin-top:28px;padding-top:12px;border-top:1px solid #d9e2df;font:11px monospace;color:#5d6f69}button{margin-top:24px;padding:11px 18px;border:0;border-radius:8px;color:white;background:#177356;font-weight:bold;cursor:pointer}@media print{body{margin:0;padding:0}button{display:none}}
   </style></head><body><header><h1>${pending ? "Termo para manifestação de consentimento" : "Comprovante de consentimento específico"}</h1><div class="muted">Uso de imagem de criança ou adolescente em culto</div></header>
-  <div class="box"><p><strong>Igreja:</strong> ${safe(church?.name)}</p><p><strong>Criança/adolescente:</strong> ${safe(child?.full_name)}</p><p><strong>Culto:</strong> ${safe(event?.title)} — ${safe(event ? dateTime(event.starts_at) : "")}</p>${guardianRows}</div>
+  <div class="box"><p><strong>Igreja:</strong> ${safe(church?.name)}</p><p><strong>Criança/adolescente:</strong> ${safe(child?.full_name)}</p><p><strong>CPF:</strong> ${safe(formatCpfForDocument(child?.document_cpf))}</p><p><strong>Culto:</strong> ${safe(event?.title)} — ${safe(event ? dateTime(event.starts_at) : "")}</p>${guardianRows}</div>
   <h2>Finalidade e condições</h2><p>${safe(authorization.consent_text_snapshot)}</p><p class="muted">A decisão é exclusiva para o culto identificado acima. A participação da criança não depende da autorização de imagem.</p>
   <h2>Decisão e escopos</h2><div class="decision">${pending ? "☐ AUTORIZO   ☐ NÃO AUTORIZO" : authorizationDecision(authorization.decision).toUpperCase()}</div><div class="scopes"><div class="scope">${authorization.allow_photo ? "☑" : "☐"} Fotografia</div><div class="scope">${authorization.allow_video ? "☑" : "☐"} Vídeo</div><div class="scope">${authorization.allow_social_media ? "☑" : "☐"} Redes sociais</div></div>
   <h2>Assinaturas dos responsáveis</h2><div class="signature-grid">${signatureRows}</div>
@@ -4218,10 +4281,275 @@ function DepartmentForm({
     roles: currentRoles.join("\n"),
     assignments: initialAssignments,
   });
-  const roleOptions = form.roles
-    .split("\n")
+  const [peopleQuery, setPeopleQuery] = useState("");
+  const [selectingTemplate, setSelectingTemplate] = useState(!initial);
+  const [newRole, setNewRole] = useState("");
+  const departmentTemplates = [
+    {
+      label: "Louvor",
+      type: "worship",
+      icon: Music,
+      description: "Adoração, música e escalas.",
+      roles: [
+        "Líder",
+        "Coordenador(a)",
+        "Vocalista",
+        "Músico(a)",
+        "Técnico(a) de som",
+        "Regente / maestro(a)",
+        "Tecladista",
+        "Baterista",
+        "Guitarrista",
+        "Violonista",
+        "Baixista",
+        "Backing vocal",
+        "Percussionista",
+      ],
+    },
+    {
+      label: "Mídia",
+      type: "media",
+      icon: Monitor,
+      description: "Comunicação, transmissão e redes sociais.",
+      roles: [
+        "Líder",
+        "Diretor(a) de mídia e comunicação",
+        "Coordenador(a) de equipe",
+        "Operador(a) de luz",
+        "Operador(a) de projeção",
+        "Assistente de palco",
+        "Fotógrafo(a)",
+        "Cinegrafista",
+        "Editor(a) de vídeo",
+        "Designer gráfico",
+        "Social media / gestor(a) de redes",
+        "Operador(a) de transmissão",
+        "Roteirista / produtor(a) de conteúdo",
+      ],
+    },
+    {
+      label: "Diaconia",
+      type: "service",
+      icon: Heart,
+      description: "Serviço, organização e apoio à comunidade.",
+      roles: [
+        "Líder",
+        "Diretor(a)",
+        "Vice-diretor(a)",
+        "Coordenador(a) de projetos sociais",
+        "Assistente social",
+        "Responsável por doações e arrecadações",
+        "Coordenador(a) de visitas e apoio comunitário",
+        "Auxiliar de logística / distribuição",
+        "Voluntário(a) de apoio",
+      ],
+    },
+    {
+      label: "Ensino",
+      type: "teaching",
+      icon: BookOpen,
+      description: "Formação bíblica, discipulado e acompanhamento.",
+      roles: [
+        "Líder",
+        "Diretor(a)",
+        "Vice-diretor(a)",
+        "Supervisor(a)",
+        "Coordenador(a)",
+        "Professor(a)",
+        "Auxiliar",
+        "Secretário(a)",
+        "Orientador(a)",
+        "Monitor(a)",
+      ],
+    },
+    {
+      label: "Pastoral",
+      type: "pastoral",
+      icon: Flame,
+      description: "Cuidado pastoral, aconselhamento e oração.",
+      roles: [
+        "Líder",
+        "Pastor(a) presidente",
+        "Pastor(a) auxiliar",
+        "Presbítero(a)",
+        "Diácono / diaconisa",
+        "Líder de ministério",
+        "Coordenador(a) de células / pequenos grupos",
+        "Conselheiro(a) espiritual",
+        "Mentor(a) ministerial",
+        "Assistente pastoral",
+      ],
+    },
+    {
+      label: "Acolhimento",
+      type: "welcome",
+      icon: Hand,
+      description: "Recepção, integração e cuidado com visitantes.",
+      roles: [
+        "Líder",
+        "Diretor(a)",
+        "Vice-diretor(a)",
+        "Coordenador(a) de equipe",
+        "Recepcionista",
+        "Acolhedor(a)",
+        "Responsável por novos convertidos",
+        "Auxiliar de recepção",
+      ],
+    },
+    {
+      label: "Tesouraria",
+      type: "finance",
+      icon: CircleDollarSign,
+      description: "Administração financeira e prestação de contas.",
+      roles: [
+        "Líder",
+        "Tesoureiro(a)",
+        "Vice-tesoureiro(a)",
+        "Secretário(a)",
+        "Vice-secretário(a)",
+        "Auxiliar administrativo",
+        "Responsável por patrimônio e inventário",
+        "Responsável por documentação e arquivo",
+        "Assistente financeiro(a)",
+      ],
+    },
+    {
+      label: "Missões",
+      type: "missions",
+      icon: Globe,
+      description: "Ações missionárias e evangelismo.",
+      roles: [
+        "Líder",
+        "Diretor(a) de missões e evangelismo",
+        "Vice-diretor(a)",
+        "Coordenador(a) de campo",
+        "Evangelista",
+        "Missionário(a)",
+        "Intercessor(a) de apoio missionário",
+      ],
+    },
+    {
+      label: "Novo",
+      type: "custom",
+      icon: Plus,
+      description: "",
+      roles: ["Líder", "Coordenador(a)", "Participante"],
+      custom: true,
+    },
+  ];
+  const roleLines = form.roles.split("\n");
+  const roleOptions = roleLines
     .map((role) => role.trim())
     .filter(Boolean);
+  const newRoleAlreadyExists = roleOptions.some(
+    (role) => role.toLocaleLowerCase("pt-BR") === newRole.trim().toLocaleLowerCase("pt-BR"),
+  );
+  function updateDepartmentRole(index: number, value: string) {
+    const previousRole = roleLines[index]?.trim();
+    const roles = roleLines.map((role, roleIndex) =>
+      roleIndex === index ? value : role,
+    );
+    setForm({
+      ...form,
+      roles: roles.join("\n"),
+      assignments: Object.fromEntries(
+        Object.entries(form.assignments).map(([personId, assignment]) => [
+          personId,
+          assignment.role_title === previousRole
+            ? { ...assignment, role_title: value.trim() }
+            : assignment,
+        ]),
+      ),
+    });
+  }
+  function removeDepartmentRole(index: number) {
+    const removedRole = roleLines[index]?.trim();
+    const roles = roleLines.filter((_, roleIndex) => roleIndex !== index);
+    const fallbackRole =
+      roles.map((role) => role.trim()).find(Boolean) ?? "Líder";
+    setForm({
+      ...form,
+      roles: roles.join("\n"),
+      assignments: Object.fromEntries(
+        Object.entries(form.assignments).map(([personId, assignment]) => [
+          personId,
+          assignment.role_title === removedRole
+            ? { ...assignment, role_title: fallbackRole }
+            : assignment,
+        ]),
+      ),
+    });
+  }
+  function addDepartmentRole() {
+    const role = newRole.trim();
+    if (!role || newRoleAlreadyExists) return;
+    setForm({
+      ...form,
+      roles: [...roleOptions, role].join("\n"),
+    });
+    setNewRole("");
+  }
+  const normalizedPeopleQuery = peopleQuery
+    .trim()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLocaleLowerCase("pt-BR");
+  const peopleResults = normalizedPeopleQuery
+    ? data.people
+        .filter((person) => {
+          const normalizedName = person.full_name
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .toLocaleLowerCase("pt-BR");
+          return (
+            normalizedName.includes(normalizedPeopleQuery) &&
+            !form.assignments[person.id]
+          );
+        })
+        .slice(0, 8)
+    : [];
+  if (selectingTemplate) {
+    return (
+      <ModalShell
+        title="Criar novo departamento"
+        subtitle="DEPARTAMENTOS"
+        onClose={onClose}
+      >
+        <div className="department-template-picker">
+          <p>Use um dos modelos prontos ou crie um novo.</p>
+          <div className="department-template-grid">
+            {departmentTemplates.map(
+              ({ label, type, icon: Icon, description, roles, custom }) => (
+                <button
+                  type="button"
+                  className={`department-template-card${custom ? " custom" : ""}`}
+                  key={type}
+                  aria-label={
+                    custom
+                      ? "Criar departamento personalizado"
+                      : `Usar modelo ${label}`
+                  }
+                  onClick={() => {
+                    setForm({
+                      ...form,
+                      name: custom ? "" : label,
+                      type,
+                      description,
+                      roles: roles.join("\n"),
+                    });
+                    setSelectingTemplate(false);
+                  }}
+                >
+                  <Icon />
+                  <strong>{label}</strong>
+                </button>
+              ),
+            )}
+          </div>
+        </div>
+      </ModalShell>
+    );
+  }
   return (
     <ModalShell
       title={initial ? "Gerenciar departamento" : "Novo departamento"}
@@ -4271,6 +4599,7 @@ function DepartmentForm({
               "teaching|Ensino",
               "pastoral|Pastoral",
               "welcome|Acolhimento",
+              "finance|Tesouraria",
               "missions|Missões",
               "custom|Personalizado",
             ]}
@@ -4288,26 +4617,52 @@ function DepartmentForm({
           </label>
           <div className="full department-people-picker">
             <strong>Participantes</strong>
-            <div className="check-grid">
-              {data.people.map((person) => (
-                <CheckCard
-                  key={person.id}
-                  label={person.full_name}
-                  checked={Boolean(form.assignments[person.id])}
-                  onChange={() => {
-                    const assignments = { ...form.assignments };
-                    if (assignments[person.id]) delete assignments[person.id];
-                    else
-                      assignments[person.id] = {
-                        role_title: roleOptions[0] ?? "Participante",
-                        can_manage: false,
-                      };
-                    setForm({ ...form, assignments });
-                  }}
-                />
-              ))}
+            <div className="department-person-search">
+              <Search />
+              <input
+                type="search"
+                aria-label="Buscar participante pelo nome"
+                placeholder="Buscar pessoa pelo nome..."
+                value={peopleQuery}
+                onChange={(event) => setPeopleQuery(event.target.value)}
+              />
             </div>
+            {normalizedPeopleQuery && (
+              <div className="check-grid department-search-results">
+                {peopleResults.map((person) => (
+                  <CheckCard
+                    key={person.id}
+                    label={person.full_name}
+                    checked={false}
+                    onChange={() => {
+                      setForm({
+                        ...form,
+                        assignments: {
+                          ...form.assignments,
+                          [person.id]: {
+                            role_title: roleOptions[0] ?? "Participante",
+                            can_manage: false,
+                          },
+                        },
+                      });
+                      setPeopleQuery("");
+                    }}
+                  />
+                ))}
+              </div>
+            )}
+            {normalizedPeopleQuery && peopleResults.length === 0 && (
+              <small className="department-search-empty">
+                Nenhuma pessoa disponível com esse nome.
+              </small>
+            )}
             <div className="department-assignments">
+              {Object.keys(form.assignments).length > 0 && (
+                <small className="department-selected-count">
+                  {Object.keys(form.assignments).length} participante(s)
+                  selecionado(s)
+                </small>
+              )}
               {Object.entries(form.assignments).map(
                 ([personId, assignment]) => {
                   const person = data.people.find(
@@ -4367,24 +4722,107 @@ function DepartmentForm({
                         />
                         Pode gerenciar
                       </label>
+                      <button
+                        type="button"
+                        className="icon-only department-remove-person"
+                        aria-label={`Remover ${person?.full_name ?? "participante"}`}
+                        title="Remover participante"
+                        onClick={() => {
+                          const assignments = { ...form.assignments };
+                          delete assignments[personId];
+                          setForm({ ...form, assignments });
+                        }}
+                      >
+                        <X />
+                      </button>
                     </div>
                   );
                 },
               )}
             </div>
           </div>
-          <label className="full">
-            Cargos e funções — um por linha
-            <textarea
-              rows={6}
-              value={form.roles}
-              onChange={(event) =>
-                setForm({ ...form, roles: event.target.value })
-              }
-            />
-          </label>
+          <section className="full department-role-editor">
+            <div className="department-role-heading">
+              <span>
+                <strong>Cargos e funções</strong>
+                <small>Edite a lista ou adicione outros cargos.</small>
+              </span>
+              <b>{roleOptions.length}</b>
+            </div>
+            <div className="department-role-list">
+              {roleLines.map((role, index) =>
+                index === 0 ? (
+                  <div className="department-role-row locked" key="leader">
+                    <span>{role || "Líder"}</span>
+                    <ShieldCheck />
+                  </div>
+                ) : (
+                  <div className="department-role-row" key={index}>
+                    <input
+                      aria-label={`Cargo ou função ${index + 1}`}
+                      value={role}
+                      onChange={(event) =>
+                        updateDepartmentRole(index, event.target.value)
+                      }
+                    />
+                    <button
+                      type="button"
+                      className="icon-only department-role-remove"
+                      aria-label={`Excluir cargo ${role || index + 1}`}
+                      onClick={() => removeDepartmentRole(index)}
+                    >
+                      <Trash2 />
+                    </button>
+                  </div>
+                ),
+              )}
+            </div>
+            <div className="department-role-add">
+              <input
+                aria-label="Novo cargo ou função"
+                placeholder="Digite um novo cargo ou função"
+                value={newRole}
+                onChange={(event) => setNewRole(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    addDepartmentRole();
+                  }
+                }}
+              />
+              <button
+                type="button"
+                className="secondary"
+                disabled={!newRole.trim() || newRoleAlreadyExists}
+                onClick={addDepartmentRole}
+              >
+                <Plus /> Adicionar
+              </button>
+            </div>
+            {newRoleAlreadyExists && (
+              <small className="department-role-warning">
+                Esse cargo já está na lista.
+              </small>
+            )}
+          </section>
         </div>
-        <ModalActions onClose={onClose} />
+        <div className="modal-actions">
+          {!initial && (
+            <button
+              type="button"
+              className="secondary"
+              onClick={() => setSelectingTemplate(true)}
+            >
+              <ArrowLeft /> Modelos
+            </button>
+          )}
+          <button type="button" className="secondary" onClick={onClose}>
+            Cancelar
+          </button>
+          <button className="primary">
+            <Check /> Salvar
+          </button>
+        </div>
       </form>
     </ModalShell>
   );
@@ -4784,9 +5222,16 @@ function PublicChurchRegistrationPage({ token }: { token: string }) {
                   <Field
                     label="Nome completo"
                     required
-                    wide
                     value={form.full_name}
                     onChange={(full_name) => setForm({ ...form, full_name })}
+                  />
+                  <Field
+                    label="CPF"
+                    required
+                    value={form.document_cpf}
+                    onChange={(document_cpf) =>
+                      setForm({ ...form, document_cpf: maskCpf(document_cpf) })
+                    }
                   />
                   <Field
                     label="Data de nascimento"
@@ -4854,14 +5299,6 @@ function PublicChurchRegistrationPage({ token }: { token: string }) {
                       }
                     />
                   )}
-                  <Field
-                    label="CPF"
-                    required
-                    value={form.document_cpf}
-                    onChange={(document_cpf) =>
-                      setForm({ ...form, document_cpf: maskCpf(document_cpf) })
-                    }
-                  />
                 </div>
               </FormSection>
 
@@ -5420,9 +5857,11 @@ function Teaching({
 function Agenda({
   events,
   onAdd,
+  onEdit,
 }: {
   events: ChurchEvent[];
   onAdd: (date?: string) => void;
+  onEdit: (event: ChurchEvent) => void;
 }) {
   const [cursor, setCursor] = useState(new Date(2026, 7, 1)),
     [view, setView] = useState<"month" | "list">("month"),
@@ -5496,30 +5935,43 @@ function Agenda({
             </div>
             <div className="calendar-grid">
               {days.map((day, i) => (
-                <button
+                <div
                   className="calendar-day"
                   key={i}
-                  onClick={() =>
-                    day &&
-                    onAdd(
-                      `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`,
-                    )
-                  }
                 >
-                  {day && <span>{day}</span>}
+                  {day && (
+                    <button
+                      type="button"
+                      className="calendar-day-add"
+                      aria-label={`Novo compromisso em ${String(day).padStart(2, "0")}/${String(month + 1).padStart(2, "0")}/${year}`}
+                      onClick={() =>
+                        onAdd(
+                          `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`,
+                        )
+                      }
+                    >
+                      {day}
+                    </button>
+                  )}
                   {day &&
                     monthEvents
                       .filter((e) => new Date(e.starts_at).getDate() === day)
                       .map((e) => (
-                        <b className={`cal-event ${e.color}`} key={e.id}>
+                        <button
+                          type="button"
+                          className={`cal-event ${e.color}`}
+                          key={e.id}
+                          aria-label={`Editar ${e.title}`}
+                          onClick={() => onEdit(e)}
+                        >
                           {new Date(e.starts_at).toLocaleTimeString("pt-BR", {
                             hour: "2-digit",
                             minute: "2-digit",
                           })}{" "}
                           {e.title}
-                        </b>
+                        </button>
                       ))}
-                </button>
+                </div>
               ))}
             </div>
           </>
@@ -5539,6 +5991,14 @@ function Agenda({
                     {dateTime(e.starts_at)} • {e.location || "Local a definir"}
                   </small>
                 </span>
+                <button
+                  type="button"
+                  className="secondary event-edit-button"
+                  aria-label={`Editar ${e.title}`}
+                  onClick={() => onEdit(e)}
+                >
+                  <Pencil /> Editar
+                </button>
               </div>
             ))}
             {!monthEvents.length && (
@@ -6254,40 +6714,49 @@ function TeachingMeetingForm({
 function EventForm({
   churchId,
   initialDate,
+  initial,
   onClose,
   onSave,
 }: {
   churchId: string;
   initialDate?: string;
+  initial?: ChurchEvent;
   onClose: () => void;
   onSave: (e: ChurchEvent) => void;
 }) {
   const [form, setForm] = useState({
-    title: "",
-    date: initialDate ?? new Date().toISOString().slice(0, 10),
-    time: "19:00",
-    end_time: "20:30",
-    location: "",
-    description: "",
-    color: "green",
-    event_type: "general",
-    image_consent_required: false,
+    title: initial?.title ?? "",
+    date:
+      initial?.starts_at.slice(0, 10) ??
+      initialDate ??
+      new Date().toISOString().slice(0, 10),
+    time: initial?.starts_at.slice(11, 16) || "19:00",
+    end_time: initial?.ends_at?.slice(11, 16) || "20:30",
+    location: initial?.location ?? "",
+    description: initial?.description ?? "",
+    color: initial?.color ?? "green",
+    event_type: initial?.event_type ?? "general",
+    image_consent_required: initial?.image_consent_required ?? false,
   });
   return (
-    <ModalShell title="Novo compromisso" subtitle="AGENDA" onClose={onClose}>
+    <ModalShell
+      title={initial ? "Editar compromisso" : "Novo compromisso"}
+      subtitle="AGENDA"
+      onClose={onClose}
+    >
       <form
         onSubmit={(e) => {
           e.preventDefault();
           onSave({
-            id: newId(),
-            church_id: churchId,
+            id: initial?.id ?? newId(),
+            church_id: initial?.church_id ?? churchId,
             title: form.title,
             description: form.description,
             starts_at: `${form.date}T${form.time}:00`,
             ends_at: `${form.date}T${form.end_time}:00`,
             location: form.location,
             color: form.color,
-            all_day: false,
+            all_day: initial?.all_day ?? false,
             event_type: form.event_type,
             image_consent_required: form.image_consent_required,
           });
