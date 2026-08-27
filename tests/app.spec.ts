@@ -197,10 +197,26 @@ test("abre cadastros de ensino, agenda e financeiro", async ({ page }) => {
     page.getByRole("heading", { name: "Editar compromisso" }),
   ).toBeVisible();
   await expect(page.getByLabel("Título")).toHaveValue("Culto de celebração");
+  await expect(page.getByLabel("Início")).toHaveValue("19:00");
   await page.getByLabel("Local").fill("Templo principal");
   await page.getByRole("button", { name: "Salvar" }).click();
   await expect(page.getByText("Compromisso atualizado.")).toBeVisible();
   await expect(page.getByText(/Templo principal/)).toBeVisible();
+  const savedEventStartsAt = await page.evaluate(() => {
+    const workspace = JSON.parse(
+      localStorage.getItem("comunhao-workspace-v2") ?? "{}",
+    );
+    return workspace.events.find(
+      (event: { title: string }) => event.title === "Culto de celebração",
+    ).starts_at as string;
+  });
+  expect(savedEventStartsAt).toMatch(/Z$/);
+  expect(
+    await page.evaluate(
+      (startsAt) => new Date(startsAt).getHours(),
+      savedEventStartsAt,
+    ),
+  ).toBe(19);
   await page.getByRole("button", { name: "Financeiro", exact: true }).click();
   await page.getByRole("button", { name: "Nova", exact: true }).first().click();
   await expect(page.getByRole("heading", { name: "Nova conta" })).toBeVisible();

@@ -3242,6 +3242,22 @@ function localDateIso(date = new Date()) {
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
 }
+function localTimeFromDateTime(value?: string) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+}
+function localDateFromDateTime(value?: string) {
+  if (!value) return "";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "" : localDateIso(date);
+}
+function localDateTimeToIso(dateValue: string, timeValue: string) {
+  const [year, month, day] = dateValue.split("-").map(Number);
+  const [hour, minute] = timeValue.split(":").map(Number);
+  return new Date(year, month - 1, day, hour, minute, 0).toISOString();
+}
 function printGeneralChildConsent(profile: ChildProfile, data: WorkspaceData) {
   const child = data.people.find((person) => person.id === profile.person_id);
   const church = data.churches.find((item) => item.id === profile.church_id);
@@ -6727,11 +6743,11 @@ function EventForm({
   const [form, setForm] = useState({
     title: initial?.title ?? "",
     date:
-      initial?.starts_at.slice(0, 10) ??
-      initialDate ??
-      new Date().toISOString().slice(0, 10),
-    time: initial?.starts_at.slice(11, 16) || "19:00",
-    end_time: initial?.ends_at?.slice(11, 16) || "20:30",
+      localDateFromDateTime(initial?.starts_at) ||
+      initialDate ||
+      localDateIso(),
+    time: localTimeFromDateTime(initial?.starts_at) || "19:00",
+    end_time: localTimeFromDateTime(initial?.ends_at) || "20:30",
     location: initial?.location ?? "",
     description: initial?.description ?? "",
     color: initial?.color ?? "green",
@@ -6752,8 +6768,8 @@ function EventForm({
             church_id: initial?.church_id ?? churchId,
             title: form.title,
             description: form.description,
-            starts_at: `${form.date}T${form.time}:00`,
-            ends_at: `${form.date}T${form.end_time}:00`,
+            starts_at: localDateTimeToIso(form.date, form.time),
+            ends_at: localDateTimeToIso(form.date, form.end_time),
             location: form.location,
             color: form.color,
             all_day: initial?.all_day ?? false,
@@ -6780,12 +6796,14 @@ function EventForm({
           <Field
             label="Início"
             type="time"
+            required
             value={form.time}
             onChange={(v) => setForm({ ...form, time: v })}
           />
           <Field
             label="Término"
             type="time"
+            required
             value={form.end_time}
             onChange={(v) => setForm({ ...form, end_time: v })}
           />
