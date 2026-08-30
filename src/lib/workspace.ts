@@ -1167,8 +1167,17 @@ export async function savePersonFamily(
     );
     const childId = child.id ?? personWithSameCpf?.id ?? newId();
     const childAge = ageFromIsoDate(child.birth_date);
-    const childCategories = childAge < 18 ? ["Criança"] : ["Membro"];
-    if (childAge >= 12 && childAge < 18) childCategories.push("Adolescente");
+    const childCategories = parent.categories.includes("Visitante")
+      ? ["Visitante"]
+      : childAge < 18
+        ? ["Criança"]
+        : ["Membro"];
+    if (
+      !parent.categories.includes("Visitante") &&
+      childAge >= 12 &&
+      childAge < 18
+    )
+      childCategories.push("Adolescente");
     const existingPerson = next.people.find((item) => item.id === childId);
     const childPerson: Person = {
       ...(existingPerson ?? {
@@ -1184,8 +1193,17 @@ export async function savePersonFamily(
       gender: child.gender,
       document_cpf: child.document_cpf.trim(),
       address: structuredClone(parent.address),
-      categories:
-        childAge >= 18
+      categories: parent.categories.includes("Visitante")
+        ? [
+            ...new Set([
+              ...(existingPerson?.categories ?? []).filter(
+                (category) =>
+                  !["Membro", "Criança", "Adolescente"].includes(category),
+              ),
+              "Visitante",
+            ]),
+          ]
+        : childAge >= 18
           ? [
               ...new Set([
                 ...(existingPerson?.categories ?? []).filter(
@@ -1984,7 +2002,9 @@ export async function submitPublicChurchRegistration(
     const normalizedCpfs = [
       input.document_cpf,
       ...input.children.map((child) => child.document_cpf),
-    ].map((cpf) => cpf?.replace(/\D/g, ""));
+    ]
+      .map((cpf) => cpf?.replace(/\D/g, ""))
+      .filter(Boolean);
     if (new Set(normalizedCpfs).size !== normalizedCpfs.length)
       throw new Error("O CPF do responsável e de cada criança deve ser único.");
     data.people.push({
@@ -2025,8 +2045,17 @@ export async function submitPublicChurchRegistration(
       );
       const childId = existingChild?.id ?? newId();
       const childAge = ageFromIsoDate(child.birth_date);
-      const childCategories = childAge < 18 ? ["Criança"] : ["Membro"];
-      if (childAge >= 12 && childAge < 18) childCategories.push("Adolescente");
+      const childCategories = input.categories.includes("Visitante")
+        ? ["Visitante"]
+        : childAge < 18
+          ? ["Criança"]
+          : ["Membro"];
+      if (
+        !input.categories.includes("Visitante") &&
+        childAge >= 12 &&
+        childAge < 18
+      )
+        childCategories.push("Adolescente");
       const childPerson: Person = {
         ...(existingChild ?? {}),
         id: childId,

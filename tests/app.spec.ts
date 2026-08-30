@@ -179,6 +179,47 @@ test("cadastra e abre uma ficha aprofundada", async ({ page }) => {
   await expect(teachingHistoryCard.getByText(/Entrou no grupo/)).toBeVisible();
 });
 
+test("cadastra visitante somente com nome, telefone e consentimentos", async ({
+  page,
+}) => {
+  await page.getByRole("button", { name: "Entrar no sistema" }).click();
+  await page.getByRole("button", { name: "Pessoas", exact: true }).click();
+  await page.getByRole("button", { name: "Nova pessoa" }).click();
+
+  const form = page.locator(".modal-layer form");
+  await expect(form.locator(".form-section").first()).toContainText(
+    "Vínculo com a igreja",
+  );
+  await form.getByRole("checkbox", { name: "Visitante", exact: true }).check();
+  await expect(form.getByLabel("CPF")).toHaveCount(0);
+  await expect(form.getByLabel("Data de nascimento")).toHaveCount(0);
+  await expect(form.getByLabel("E-mail")).toHaveCount(0);
+  await expect(form.getByLabel("Possui filhos?")).toHaveCount(0);
+
+  await form.getByLabel("Nome completo").fill("Visitante Interno");
+  await form.getByLabel("Telefone WhatsApp").fill("11966665555");
+  await form.getByRole("button", { name: /Continuar/ }).click();
+  await form.locator(".consent-form input").first().check();
+  await form.getByRole("button", { name: /Salvar pessoa/ }).click();
+  await expect(page.getByText("Pessoa cadastrada.")).toBeVisible();
+
+  const visitor = await page.evaluate(() => {
+    const workspace = JSON.parse(
+      localStorage.getItem("comunhao-workspace-v2") ?? "{}",
+    );
+    return workspace.people.find(
+      (person: { full_name: string }) =>
+        person.full_name === "Visitante Interno",
+    );
+  });
+  expect(visitor.categories).toEqual(["Visitante"]);
+  expect(visitor.phone_primary).toBe("(11) 96666-5555");
+  expect(visitor.document_cpf).toBeUndefined();
+  expect(visitor.email).toBeUndefined();
+  expect(visitor.birth_date).toBeUndefined();
+  expect(visitor.consent.data_processing).toBe(true);
+});
+
 test("abre cadastros de ensino, agenda e financeiro", async ({ page }) => {
   await page.getByRole("button", { name: "Entrar no sistema" }).click();
   await page.getByRole("button", { name: "Ensino", exact: true }).click();
@@ -302,9 +343,9 @@ test("Gestor Geral atribui cargo e liderança no departamento", async ({
   await page.getByRole("button", { name: "Usar modelo Louvor" }).click();
   await expect(page.getByLabel("Nome do departamento")).toHaveValue("Louvor");
   await expect(page.getByLabel("Modelo")).toHaveValue("worship");
-  await expect(
-    page.locator('input[value="Regente / maestro(a)"]'),
-  ).toHaveCount(1);
+  await expect(page.locator('input[value="Regente / maestro(a)"]')).toHaveCount(
+    1,
+  );
   await page.getByLabel("Novo cargo ou função").fill("Compositor(a)");
   await page.getByRole("button", { name: "Adicionar" }).click();
   await expect(page.locator('input[value="Compositor(a)"]')).toHaveCount(1);
@@ -478,13 +519,13 @@ test("membro faz pré-cadastro pelo link e já fica vinculado à igreja", async 
     page.getByRole("heading", { name: "Vamos conhecer você" }),
   ).toBeVisible();
   await expect(page.getByText("Igreja da Promessa").first()).toBeVisible();
+  await page.getByRole("checkbox", { name: "Membro", exact: true }).check();
   await page.getByLabel("Nome completo").fill("Rafael do Cadastro");
   await page.getByLabel("Data de nascimento").fill("12/03/1994");
   await page.getByLabel("Sexo").selectOption("Homem");
   await page.getByLabel("Escolaridade").selectOption("Ensino Superior");
   await page.getByLabel("Estado civil").selectOption("Solteiro(a)");
   await page.getByLabel("CPF").fill("987.654.321-00");
-  await page.getByRole("checkbox", { name: "Membro", exact: true }).check();
   await page.getByLabel("Possui filhos?").selectOption("Sim");
   await page.getByLabel("Nome completo do filho 1").fill("Gabriel Cadastro");
   await page.getByLabel("Data de nascimento do filho 1").fill("10/04/2016");
@@ -570,4 +611,55 @@ test("membro faz pré-cadastro pelo link e já fica vinculado à igreja", async 
       (guardian: { legal_guardian: boolean }) => guardian.legal_guardian,
     ),
   ).toBe(true);
+});
+
+test("visitante faz cadastro simplificado pelo link", async ({ page }) => {
+  await page.goto("/?cadastro=22222222-2222-4222-8222-222222222222");
+
+  const firstSection = page
+    .locator(".public-registration-card .form-section")
+    .first();
+  await expect(firstSection).toContainText("Como você está chegando?");
+  await expect(firstSection.getByRole("checkbox")).toHaveCount(3);
+
+  await page.getByRole("checkbox", { name: "Visitante", exact: true }).check();
+  await expect(page.getByLabel("Nome completo")).toBeVisible();
+  await expect(page.getByLabel("Telefone WhatsApp")).toBeVisible();
+  await expect(page.getByLabel("CPF")).toHaveCount(0);
+  await expect(page.getByLabel("Data de nascimento")).toHaveCount(0);
+  await expect(page.getByLabel("E-mail")).toHaveCount(0);
+  await expect(page.getByLabel("Possui filhos?")).toHaveCount(0);
+
+  await page.getByLabel("Nome completo").fill("Visitante Cadastro");
+  await page.getByLabel("Telefone WhatsApp").fill("11977776666");
+  await page
+    .getByRole("checkbox", {
+      name: /Autorizo o tratamento dos meus dados pessoais/,
+    })
+    .check();
+  await page
+    .getByRole("checkbox", { name: /Aceito receber mensagens da igreja/ })
+    .check();
+  await page.getByRole("button", { name: "Enviar meu cadastro" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Seja bem-vindo(a)!" }),
+  ).toBeVisible();
+
+  const visitor = await page.evaluate(() => {
+    const workspace = JSON.parse(
+      localStorage.getItem("comunhao-workspace-v2") ?? "{}",
+    );
+    return workspace.people?.find(
+      (person: { full_name: string }) =>
+        person.full_name === "Visitante Cadastro",
+    );
+  });
+  expect(visitor.categories).toEqual(["Pré-cadastro", "Visitante"]);
+  expect(visitor.phone_primary).toBe("(11) 97777-6666");
+  expect(visitor.document_cpf).toBeUndefined();
+  expect(visitor.email).toBeUndefined();
+  expect(visitor.birth_date).toBeUndefined();
+  expect(visitor.consent).toEqual(
+    expect.objectContaining({ messaging: true, data_processing: true }),
+  );
 });

@@ -1812,10 +1812,7 @@ function PersonDetail({
               Departamentos
             </h2>
             {personDepartments.map((membership) => (
-              <div
-                className="simple-row"
-                key={membership.department_id}
-              >
+              <div className="simple-row" key={membership.department_id}>
                 <span className="metric-icon">
                   <Building2 />
                 </span>
@@ -1832,9 +1829,7 @@ function PersonDetail({
               </div>
             ))}
             {!personDepartments.length && (
-              <p className="inline-empty">
-                Nenhum departamento vinculado.
-              </p>
+              <p className="inline-empty">Nenhum departamento vinculado.</p>
             )}
           </section>
           <section className="card info-card">
@@ -1850,7 +1845,8 @@ function PersonDetail({
                 <span>
                   <strong>{g.name}</strong>
                   <small>
-                    {g.track} • Cargo: {person.group_roles?.[g.id] ?? "Aluno(a)"}
+                    {g.track} • Cargo:{" "}
+                    {person.group_roles?.[g.id] ?? "Aluno(a)"}
                   </small>
                 </span>
               </div>
@@ -2009,6 +2005,10 @@ function PersonForm({
           })),
     ),
     [, setFormError] = useState("");
+  const personCategory = form.categories.find((category) =>
+    ["Visitante", "Membro", "Criança"].includes(category),
+  );
+  const isVisitor = personCategory === "Visitante";
   function showFormError(message: string) {
     setFormError(message);
     notify(message, "error");
@@ -2019,19 +2019,24 @@ function PersonForm({
       setForm((prev) => ({
         ...prev,
         address: { ...prev.address, [key]: value },
-      })),
-    toggleList = (key: "categories", value: string) =>
-      set(
-        key,
-        form[key].includes(value)
-          ? form[key].filter((v) => v !== value)
-          : [...form[key], value],
-      );
+      }));
   function continueForm(event: React.MouseEvent<HTMLButtonElement>) {
     setFormError("");
     const formElement = event.currentTarget.closest("form");
     if (!formElement?.reportValidity()) return;
     if (section === "personal") {
+      if (!personCategory) {
+        showFormError("Escolha Visitante, Membro ou Criança.");
+        return;
+      }
+      if ((form.phone_primary?.replace(/\D/g, "").length ?? 0) < 10) {
+        showFormError("Informe um telefone WhatsApp válido.");
+        return;
+      }
+      if (isVisitor) {
+        setSection("consent");
+        return;
+      }
       if (!brazilianDateToIso(form.birth_date)) {
         showFormError("Informe uma data de nascimento válida em dd/mm/aaaa.");
         return;
@@ -2053,10 +2058,6 @@ function PersonForm({
         showFormError("Cada pessoa da família precisa ter um CPF diferente.");
         return;
       }
-      if (!form.categories.length) {
-        showFormError("Assinale Membro, Visitante, Adolescente ou Criança.");
-        return;
-      }
       setSection("consent");
       return;
     }
@@ -2076,21 +2077,35 @@ function PersonForm({
       <form
         onSubmit={(e) => {
           e.preventDefault();
-          const birthDate = brazilianDateToIso(form.birth_date);
-          if (!birthDate) {
+          if (!personCategory) {
+            setSection("personal");
+            showFormError("Escolha Visitante, Membro ou Criança.");
+            return;
+          }
+          if (
+            form.full_name.trim().length < 3 ||
+            (form.phone_primary?.replace(/\D/g, "").length ?? 0) < 10
+          ) {
+            setSection("personal");
+            showFormError("Informe o nome completo e um telefone válido.");
+            return;
+          }
+          const birthDate = isVisitor
+            ? undefined
+            : brazilianDateToIso(form.birth_date);
+          if (!isVisitor && !birthDate) {
             setSection("personal");
             showFormError("Informe uma data de nascimento válida.");
             return;
           }
-          const childrenError = hasChildren
-            ? familyChildrenError(children)
-            : "";
+          const childrenError =
+            !isVisitor && hasChildren ? familyChildrenError(children) : "";
           if (childrenError) {
             setSection("personal");
             showFormError(childrenError);
             return;
           }
-          const preparedChildren = children.map((child) => ({
+          const preparedChildren = (isVisitor ? [] : children).map((child) => ({
             ...child,
             full_name: child.full_name.trim(),
             birth_date: brazilianDateToIso(child.birth_date) ?? "",
@@ -2099,7 +2114,18 @@ function PersonForm({
           onSave(
             {
               ...form,
-              birth_date: birthDate,
+              birth_date: birthDate ?? undefined,
+              gender: isVisitor ? undefined : form.gender,
+              education: isVisitor ? undefined : form.education,
+              marital_status: isVisitor ? undefined : form.marital_status,
+              spouse_name: isVisitor ? undefined : form.spouse_name,
+              document_cpf: isVisitor ? undefined : form.document_cpf,
+              email: isVisitor ? undefined : form.email,
+              phone_secondary: isVisitor ? undefined : form.phone_secondary,
+              address: isVisitor ? {} : form.address,
+              conversion_date: isVisitor ? undefined : form.conversion_date,
+              baptism_date: isVisitor ? undefined : form.baptism_date,
+              baptized: isVisitor ? undefined : form.baptized,
               children_names: preparedChildren.map((child) => child.full_name),
             },
             preparedChildren,
@@ -2125,6 +2151,25 @@ function PersonForm({
         <div className="form-scroll">
           {section === "personal" && (
             <>
+              <FormSection title="Vínculo com a igreja" required>
+                <p className="field-help">Escolha uma opção para continuar.</p>
+                <div className="check-grid">
+                  {["Visitante", "Membro", "Criança"].map((category) => (
+                    <CheckCard
+                      key={category}
+                      label={category}
+                      checked={personCategory === category}
+                      onChange={() => {
+                        set("categories", [category]);
+                        if (category === "Visitante") {
+                          setHasChildren(undefined);
+                          setChildren([]);
+                        }
+                      }}
+                    />
+                  ))}
+                </div>
+              </FormSection>
               <FormSection title="Identificação">
                 <div className="form-grid">
                   <Field
@@ -2133,257 +2178,272 @@ function PersonForm({
                     value={form.full_name}
                     onChange={(v) => set("full_name", v)}
                   />
-                  <Field
-                    label="CPF"
-                    required
-                    value={form.document_cpf}
-                    onChange={(v) => set("document_cpf", maskCpf(v))}
-                  />
-                  <Field
-                    label="Data de nascimento"
-                    required
-                    placeholder="dd/mm/aaaa"
-                    inputMode="numeric"
-                    value={form.birth_date}
-                    onChange={(v) => set("birth_date", maskBrazilianDate(v))}
-                  />
-                  <SelectField
-                    label="Sexo"
-                    required
-                    value={form.gender}
-                    options={["Homem", "Mulher", "Prefiro não informar"]}
-                    onChange={(v) => set("gender", v)}
-                  />
-                  <SelectField
-                    label="Escolaridade"
-                    required
-                    value={form.education}
-                    options={[
-                      "Ensino Fundamental",
-                      "Ensino Médio",
-                      "Ensino Superior",
-                      "Pós-graduação",
-                    ]}
-                    onChange={(v) => set("education", v)}
-                  />
-                  <SelectField
-                    label="Estado civil"
-                    required
-                    value={form.marital_status}
-                    options={[
-                      "Solteiro(a)",
-                      "Casado(a)",
-                      "Divorciado(a)",
-                      "Viúvo(a)",
-                      "União estável",
-                    ]}
-                    onChange={(v) => {
-                      set("marital_status", v);
-                      if (v !== "Casado(a)" && v !== "União estável")
-                        set("spouse_name", undefined);
-                    }}
-                  />
-                  {(form.marital_status === "Casado(a)" ||
-                    form.marital_status === "União estável") && (
+                  {!isVisitor && (
                     <Field
-                      label="Nome completo do cônjuge"
+                      label="CPF"
                       required
-                      value={form.spouse_name}
-                      onChange={(v) => set("spouse_name", v)}
+                      value={form.document_cpf}
+                      onChange={(v) => set("document_cpf", maskCpf(v))}
                     />
                   )}
+                  {!isVisitor && (
+                    <Field
+                      label="Data de nascimento"
+                      required
+                      placeholder="dd/mm/aaaa"
+                      inputMode="numeric"
+                      value={form.birth_date}
+                      onChange={(v) => set("birth_date", maskBrazilianDate(v))}
+                    />
+                  )}
+                  {!isVisitor && (
+                    <SelectField
+                      label="Sexo"
+                      required
+                      value={form.gender}
+                      options={["Homem", "Mulher", "Prefiro não informar"]}
+                      onChange={(v) => set("gender", v)}
+                    />
+                  )}
+                  {!isVisitor && (
+                    <SelectField
+                      label="Escolaridade"
+                      required
+                      value={form.education}
+                      options={[
+                        "Ensino Fundamental",
+                        "Ensino Médio",
+                        "Ensino Superior",
+                        "Pós-graduação",
+                      ]}
+                      onChange={(v) => set("education", v)}
+                    />
+                  )}
+                  {!isVisitor && (
+                    <SelectField
+                      label="Estado civil"
+                      required
+                      value={form.marital_status}
+                      options={[
+                        "Solteiro(a)",
+                        "Casado(a)",
+                        "Divorciado(a)",
+                        "Viúvo(a)",
+                        "União estável",
+                      ]}
+                      onChange={(v) => {
+                        set("marital_status", v);
+                        if (v !== "Casado(a)" && v !== "União estável")
+                          set("spouse_name", undefined);
+                      }}
+                    />
+                  )}
+                  {!isVisitor &&
+                    (form.marital_status === "Casado(a)" ||
+                      form.marital_status === "União estável") && (
+                      <Field
+                        label="Nome completo do cônjuge"
+                        required
+                        value={form.spouse_name}
+                        onChange={(v) => set("spouse_name", v)}
+                      />
+                    )}
                 </div>
               </FormSection>
-              <FormSection title="Filhos">
-                <div className="form-grid">
-                  <SelectField
-                    label="Possui filhos?"
-                    required
-                    value={
-                      hasChildren === undefined
-                        ? ""
-                        : hasChildren
-                          ? "Sim"
-                          : "Não"
-                    }
-                    options={["Sim", "Não"]}
-                    onChange={(value) => {
-                      const next = value === "Sim";
-                      setHasChildren(value ? next : undefined);
-                      setChildren(
-                        next
-                          ? children.length
-                            ? children
-                            : [
-                                {
-                                  full_name: "",
-                                  birth_date: "",
-                                  gender: "",
-                                  document_cpf: "",
-                                },
-                              ]
-                          : [],
-                      );
-                    }}
-                  />
-                </div>
-                {hasChildren && (
-                  <div className="children-name-list">
-                    {children.map((child, index) => (
-                      <div
-                        className="family-child-card"
-                        key={child.id ?? index}
-                      >
-                        <div className="family-child-heading">
-                          <strong>Filho(a) {index + 1}</strong>
-                          {children.length > 1 && (
-                            <button
-                              type="button"
-                              className="icon-only danger"
-                              aria-label={`Remover filho ${index + 1}`}
-                              onClick={() =>
+              {!isVisitor && (
+                <FormSection title="Filhos">
+                  <div className="form-grid">
+                    <SelectField
+                      label="Possui filhos?"
+                      required
+                      value={
+                        hasChildren === undefined
+                          ? ""
+                          : hasChildren
+                            ? "Sim"
+                            : "Não"
+                      }
+                      options={["Sim", "Não"]}
+                      onChange={(value) => {
+                        const next = value === "Sim";
+                        setHasChildren(value ? next : undefined);
+                        setChildren(
+                          next
+                            ? children.length
+                              ? children
+                              : [
+                                  {
+                                    full_name: "",
+                                    birth_date: "",
+                                    gender: "",
+                                    document_cpf: "",
+                                  },
+                                ]
+                            : [],
+                        );
+                      }}
+                    />
+                  </div>
+                  {hasChildren && (
+                    <div className="children-name-list">
+                      {children.map((child, index) => (
+                        <div
+                          className="family-child-card"
+                          key={child.id ?? index}
+                        >
+                          <div className="family-child-heading">
+                            <strong>Filho(a) {index + 1}</strong>
+                            {children.length > 1 && (
+                              <button
+                                type="button"
+                                className="icon-only danger"
+                                aria-label={`Remover filho ${index + 1}`}
+                                onClick={() =>
+                                  setChildren(
+                                    children.filter(
+                                      (_, itemIndex) => itemIndex !== index,
+                                    ),
+                                  )
+                                }
+                              >
+                                <Trash2 />
+                              </button>
+                            )}
+                          </div>
+                          <div className="form-grid">
+                            <Field
+                              label={`Nome completo do filho ${index + 1}`}
+                              required
+                              value={child.full_name}
+                              onChange={(full_name) =>
                                 setChildren(
-                                  children.filter(
-                                    (_, itemIndex) => itemIndex !== index,
+                                  children.map((current, itemIndex) =>
+                                    itemIndex === index
+                                      ? { ...current, full_name }
+                                      : current,
                                   ),
                                 )
                               }
-                            >
-                              <Trash2 />
-                            </button>
+                            />
+                            <Field
+                              label={`CPF do filho ${index + 1}`}
+                              required
+                              inputMode="numeric"
+                              value={child.document_cpf}
+                              onChange={(document_cpf) => {
+                                const maskedCpf = maskCpf(document_cpf);
+                                const cpfDigits = maskedCpf.replace(/\D/g, "");
+                                const existingChild =
+                                  cpfDigits.length === 11
+                                    ? availablePeople.find(
+                                        (person) =>
+                                          person.id !== initial?.id &&
+                                          person.church_id === churchId &&
+                                          person.document_cpf?.replace(
+                                            /\D/g,
+                                            "",
+                                          ) === cpfDigits,
+                                      )
+                                    : undefined;
+                                setChildren(
+                                  children.map((current, itemIndex) =>
+                                    itemIndex === index
+                                      ? existingChild
+                                        ? {
+                                            id: existingChild.id,
+                                            full_name: existingChild.full_name,
+                                            birth_date: toBrazilianDate(
+                                              existingChild.birth_date,
+                                            ),
+                                            gender: existingChild.gender ?? "",
+                                            document_cpf: maskedCpf,
+                                          }
+                                        : {
+                                            ...current,
+                                            document_cpf: maskedCpf,
+                                          }
+                                      : current,
+                                  ),
+                                );
+                                if (existingChild)
+                                  notify(
+                                    `${existingChild.full_name} já está cadastrado(a). Ao salvar, esta pessoa será adicionada como outro responsável.`,
+                                  );
+                              }}
+                            />
+                            <Field
+                              label={`Data de nascimento do filho ${index + 1}`}
+                              required
+                              placeholder="dd/mm/aaaa"
+                              inputMode="numeric"
+                              value={child.birth_date}
+                              onChange={(birth_date) =>
+                                setChildren(
+                                  children.map((current, itemIndex) =>
+                                    itemIndex === index
+                                      ? {
+                                          ...current,
+                                          birth_date:
+                                            maskBrazilianDate(birth_date),
+                                        }
+                                      : current,
+                                  ),
+                                )
+                              }
+                            />
+                            <SelectField
+                              label={`Sexo do filho ${index + 1}`}
+                              required
+                              value={child.gender}
+                              options={[
+                                "Homem",
+                                "Mulher",
+                                "Prefiro não informar",
+                              ]}
+                              onChange={(gender) =>
+                                setChildren(
+                                  children.map((current, itemIndex) =>
+                                    itemIndex === index
+                                      ? { ...current, gender }
+                                      : current,
+                                  ),
+                                )
+                              }
+                            />
+                          </div>
+                          {personAge(child.birth_date) !== null && (
+                            <small className="child-age">
+                              Idade atual: {personAge(child.birth_date)} anos
+                            </small>
+                          )}
+                          {child.id && (
+                            <small className="existing-child-notice">
+                              <Check /> Cadastro existente localizado pelo CPF
+                            </small>
                           )}
                         </div>
-                        <div className="form-grid">
-                          <Field
-                            label={`CPF do filho ${index + 1}`}
-                            required
-                            inputMode="numeric"
-                            value={child.document_cpf}
-                            onChange={(document_cpf) => {
-                              const maskedCpf = maskCpf(document_cpf);
-                              const cpfDigits = maskedCpf.replace(/\D/g, "");
-                              const existingChild =
-                                cpfDigits.length === 11
-                                  ? availablePeople.find(
-                                      (person) =>
-                                        person.id !== initial?.id &&
-                                        person.church_id === churchId &&
-                                        person.document_cpf?.replace(
-                                          /\D/g,
-                                          "",
-                                        ) === cpfDigits,
-                                    )
-                                  : undefined;
-                              setChildren(
-                                children.map((current, itemIndex) =>
-                                  itemIndex === index
-                                    ? existingChild
-                                      ? {
-                                          id: existingChild.id,
-                                          full_name: existingChild.full_name,
-                                          birth_date: toBrazilianDate(
-                                            existingChild.birth_date,
-                                          ),
-                                          gender: existingChild.gender ?? "",
-                                          document_cpf: maskedCpf,
-                                        }
-                                      : { ...current, document_cpf: maskedCpf }
-                                    : current,
-                                ),
-                              );
-                              if (existingChild)
-                                notify(
-                                  `${existingChild.full_name} já está cadastrado(a). Ao salvar, esta pessoa será adicionada como outro responsável.`,
-                                );
-                            }}
-                          />
-                          <Field
-                            label={`Nome completo do filho ${index + 1}`}
-                            required
-                            wide
-                            value={child.full_name}
-                            onChange={(full_name) =>
-                              setChildren(
-                                children.map((current, itemIndex) =>
-                                  itemIndex === index
-                                    ? { ...current, full_name }
-                                    : current,
-                                ),
-                              )
-                            }
-                          />
-                          <Field
-                            label={`Data de nascimento do filho ${index + 1}`}
-                            required
-                            placeholder="dd/mm/aaaa"
-                            inputMode="numeric"
-                            value={child.birth_date}
-                            onChange={(birth_date) =>
-                              setChildren(
-                                children.map((current, itemIndex) =>
-                                  itemIndex === index
-                                    ? {
-                                        ...current,
-                                        birth_date:
-                                          maskBrazilianDate(birth_date),
-                                      }
-                                    : current,
-                                ),
-                              )
-                            }
-                          />
-                          <SelectField
-                            label={`Sexo do filho ${index + 1}`}
-                            required
-                            value={child.gender}
-                            options={[
-                              "Homem",
-                              "Mulher",
-                              "Prefiro não informar",
-                            ]}
-                            onChange={(gender) =>
-                              setChildren(
-                                children.map((current, itemIndex) =>
-                                  itemIndex === index
-                                    ? { ...current, gender }
-                                    : current,
-                                ),
-                              )
-                            }
-                          />
-                        </div>
-                        {personAge(child.birth_date) !== null && (
-                          <small className="child-age">
-                            Idade atual: {personAge(child.birth_date)} anos
-                          </small>
-                        )}
-                        {child.id && (
-                          <small className="existing-child-notice">
-                            <Check /> Cadastro existente localizado pelo CPF
-                          </small>
-                        )}
-                      </div>
-                    ))}
-                    <button
-                      type="button"
-                      className="secondary add-child-name"
-                      onClick={() =>
-                        setChildren([
-                          ...children,
-                          {
-                            full_name: "",
-                            birth_date: "",
-                            gender: "",
-                            document_cpf: "",
-                          },
-                        ])
-                      }
-                    >
-                      <Plus /> Adicionar outro filho
-                    </button>
-                  </div>
-                )}
-              </FormSection>
+                      ))}
+                      <button
+                        type="button"
+                        className="secondary add-child-name"
+                        onClick={() =>
+                          setChildren([
+                            ...children,
+                            {
+                              full_name: "",
+                              birth_date: "",
+                              gender: "",
+                              document_cpf: "",
+                            },
+                          ])
+                        }
+                      >
+                        <Plus /> Adicionar outro filho
+                      </button>
+                    </div>
+                  )}
+                </FormSection>
+              )}
               <FormSection title="Contato">
                 <div className="form-grid">
                   <Field
@@ -2392,125 +2452,121 @@ function PersonForm({
                     value={form.phone_primary}
                     onChange={(v) => set("phone_primary", maskPhone(v))}
                   />
-                  <Field
-                    label="Telefone alternativo (opcional)"
-                    value={form.phone_secondary}
-                    onChange={(v) => set("phone_secondary", maskPhone(v))}
-                  />
-                  <Field
-                    label="E-mail"
-                    type="email"
-                    required
-                    wide
-                    value={form.email}
-                    onChange={(v) => set("email", v)}
-                  />
+                  {!isVisitor && (
+                    <>
+                      <Field
+                        label="Telefone alternativo (opcional)"
+                        value={form.phone_secondary}
+                        onChange={(v) => set("phone_secondary", maskPhone(v))}
+                      />
+                      <Field
+                        label="E-mail"
+                        type="email"
+                        required
+                        wide
+                        value={form.email}
+                        onChange={(v) => set("email", v)}
+                      />
+                    </>
+                  )}
                 </div>
               </FormSection>
-              <FormSection title="Endereço">
-                <div className="form-grid">
-                  <CepField
-                    required
-                    value={form.address.zip}
-                    onChange={(v) => address("zip", v)}
-                    onAddress={(found) =>
-                      setForm((current) => ({
-                        ...current,
-                        address: { ...current.address, ...found },
-                      }))
-                    }
-                  />
-                  <Field
-                    label="Endereço"
-                    wide
-                    required
-                    value={form.address.street}
-                    onChange={(v) => address("street", v)}
-                  />
-                  <Field
-                    label="Número"
-                    required
-                    value={form.address.number}
-                    onChange={(v) => address("number", v)}
-                  />
-                  <Field
-                    label="Complemento"
-                    required
-                    value={form.address.complement}
-                    onChange={(v) => address("complement", v)}
-                  />
-                  <Field
-                    label="Bairro"
-                    required
-                    value={form.address.district}
-                    onChange={(v) => address("district", v)}
-                  />
-                  <Field
-                    label="Cidade"
-                    required
-                    value={form.address.city}
-                    onChange={(v) => address("city", v)}
-                  />
-                  <Field
-                    label="Estado"
-                    required
-                    value={form.address.state}
-                    onChange={(v) => address("state", v)}
-                  />
-                  <Field
-                    label="País"
-                    required
-                    value={form.address.country}
-                    onChange={(v) => address("country", v)}
-                  />
-                </div>
-              </FormSection>
+              {!isVisitor && (
+                <FormSection title="Endereço">
+                  <div className="form-grid">
+                    <CepField
+                      required
+                      value={form.address.zip}
+                      onChange={(v) => address("zip", v)}
+                      onAddress={(found) =>
+                        setForm((current) => ({
+                          ...current,
+                          address: { ...current.address, ...found },
+                        }))
+                      }
+                    />
+                    <Field
+                      label="Endereço"
+                      wide
+                      required
+                      value={form.address.street}
+                      onChange={(v) => address("street", v)}
+                    />
+                    <Field
+                      label="Número"
+                      required
+                      value={form.address.number}
+                      onChange={(v) => address("number", v)}
+                    />
+                    <Field
+                      label="Complemento"
+                      required
+                      value={form.address.complement}
+                      onChange={(v) => address("complement", v)}
+                    />
+                    <Field
+                      label="Bairro"
+                      required
+                      value={form.address.district}
+                      onChange={(v) => address("district", v)}
+                    />
+                    <Field
+                      label="Cidade"
+                      required
+                      value={form.address.city}
+                      onChange={(v) => address("city", v)}
+                    />
+                    <Field
+                      label="Estado"
+                      required
+                      value={form.address.state}
+                      onChange={(v) => address("state", v)}
+                    />
+                    <Field
+                      label="País"
+                      required
+                      value={form.address.country}
+                      onChange={(v) => address("country", v)}
+                    />
+                  </div>
+                </FormSection>
+              )}
             </>
           )}
           {section === "personal" && (
             <>
-              <FormSection title="Jornada espiritual">
-                <div className="form-grid">
-                  <Field
-                    label="Data de conversão"
-                    type="date"
-                    value={form.conversion_date}
-                    onChange={(v) => set("conversion_date", v)}
+              {!isVisitor && (
+                <FormSection title="Jornada espiritual">
+                  <div className="form-grid">
+                    <Field
+                      label="Data de conversão"
+                      type="date"
+                      value={form.conversion_date}
+                      onChange={(v) => set("conversion_date", v)}
+                    />
+                    <Field
+                      label="Data do batismo"
+                      type="date"
+                      value={form.baptism_date}
+                      onChange={(v) => {
+                        set("baptism_date", v);
+                        set("baptized", v ? true : undefined);
+                      }}
+                    />
+                  </div>
+                </FormSection>
+              )}
+              {!isVisitor && (
+                <label className="standalone-label">
+                  Informações complementares
+                  <textarea
+                    rows={5}
+                    placeholder="Informações que acha importante"
+                    value={form.notes ?? ""}
+                    onChange={(e) => set("notes", e.target.value)}
                   />
-                  <Field
-                    label="Data do batismo"
-                    type="date"
-                    value={form.baptism_date}
-                    onChange={(v) => {
-                      set("baptism_date", v);
-                      set("baptized", v ? true : undefined);
-                    }}
-                  />
-                </div>
-              </FormSection>
-              <FormSection title="Categorias" required>
-                <div className="check-grid">
-                  {["Criança", "Adolescente", "Visitante", "Membro"].map(
-                    (v) => (
-                      <CheckCard
-                        key={v}
-                        label={v}
-                        checked={form.categories.includes(v)}
-                        onChange={() => toggleList("categories", v)}
-                      />
-                    ),
-                  )}
-                </div>
-              </FormSection>
-              <label className="standalone-label">
-                Informações complementares
-                <textarea
-                  rows={5}
-                  placeholder="Informações que acha importante"
-                  value={form.notes ?? ""}
-                  onChange={(e) => set("notes", e.target.value)}
-                />
-              </label>
+                </label>
+              )}
               <CheckCard
                 label="Cadastro ativo"
                 checked={form.active}
@@ -4454,11 +4510,11 @@ function DepartmentForm({
     },
   ];
   const roleLines = form.roles.split("\n");
-  const roleOptions = roleLines
-    .map((role) => role.trim())
-    .filter(Boolean);
+  const roleOptions = roleLines.map((role) => role.trim()).filter(Boolean);
   const newRoleAlreadyExists = roleOptions.some(
-    (role) => role.toLocaleLowerCase("pt-BR") === newRole.trim().toLocaleLowerCase("pt-BR"),
+    (role) =>
+      role.toLocaleLowerCase("pt-BR") ===
+      newRole.trim().toLocaleLowerCase("pt-BR"),
   );
   function updateDepartmentRole(index: number, value: string) {
     const previousRole = roleLines[index]?.trim();
@@ -5091,6 +5147,8 @@ function PublicChurchRegistrationPage({ token }: { token: string }) {
       messaging_consent: false,
       data_processing_consent: false,
     });
+  const registrationCategory = form.categories[0] ?? "";
+  const isVisitor = registrationCategory === "Visitante";
 
   useEffect(() => {
     loadPublicChurchRegistration(token)
@@ -5117,32 +5175,37 @@ function PublicChurchRegistrationPage({ token }: { token: string }) {
     event.preventDefault();
     setError("");
     if (website) return;
-    const birthDate = brazilianDateToIso(form.birth_date);
-    if (!birthDate) {
+    if (!form.categories.length) {
+      setError("Escolha Visitante, Membro ou Criança.");
+      return;
+    }
+    if ((form.phone_primary?.replace(/\D/g, "").length ?? 0) < 10) {
+      setError("Informe um telefone WhatsApp válido.");
+      return;
+    }
+    const birthDate = isVisitor ? "" : brazilianDateToIso(form.birth_date);
+    if (!isVisitor && !birthDate) {
       setError("Informe uma data de nascimento válida em dd/mm/aaaa.");
       return;
     }
-    if (!form.categories.length) {
-      setError("Assinale Membro, Visitante, Adolescente ou Criança.");
-      return;
-    }
-    if (hasChildren === undefined) {
+    if (!isVisitor && hasChildren === undefined) {
       setError("Informe se você possui filhos.");
       return;
     }
     const normalizedParentCpf = form.document_cpf?.replace(/\D/g, "") ?? "";
-    if (normalizedParentCpf.length !== 11) {
+    if (!isVisitor && normalizedParentCpf.length !== 11) {
       setError("Informe um CPF válido para o responsável.");
       return;
     }
-    const childrenError = hasChildren
-      ? familyChildrenError(form.children, "criança")
-      : "";
+    const childrenError =
+      !isVisitor && hasChildren
+        ? familyChildrenError(form.children, "criança")
+        : "";
     if (childrenError) {
       setError(childrenError);
       return;
     }
-    const preparedChildren = form.children.map((child) => ({
+    const preparedChildren = (isVisitor ? [] : form.children).map((child) => ({
       full_name: child.full_name.trim(),
       birth_date: brazilianDateToIso(child.birth_date) ?? "",
       document_cpf: child.document_cpf.replace(/\D/g, ""),
@@ -5152,7 +5215,7 @@ function PublicChurchRegistrationPage({ token }: { token: string }) {
     const familyCpfs = [
       normalizedParentCpf,
       ...preparedChildren.map((child) => child.document_cpf),
-    ];
+    ].filter(Boolean);
     if (new Set(familyCpfs).size !== familyCpfs.length) {
       setError("Cada pessoa da família precisa ter um CPF diferente.");
       return;
@@ -5161,7 +5224,17 @@ function PublicChurchRegistrationPage({ token }: { token: string }) {
     try {
       await submitPublicChurchRegistration(token, {
         ...form,
-        birth_date: birthDate,
+        birth_date: birthDate || undefined,
+        document_cpf: isVisitor ? undefined : normalizedParentCpf,
+        gender: isVisitor ? undefined : form.gender,
+        education: isVisitor ? undefined : form.education,
+        marital_status: isVisitor ? undefined : form.marital_status,
+        spouse_name: isVisitor ? undefined : form.spouse_name,
+        email: isVisitor ? undefined : form.email,
+        phone_secondary: isVisitor ? undefined : form.phone_secondary,
+        address: isVisitor ? {} : form.address,
+        conversion_date: isVisitor ? undefined : form.conversion_date,
+        baptism_date: isVisitor ? undefined : form.baptism_date,
         children: preparedChildren.map((child) => ({
           full_name: child.full_name,
           birth_date: child.birth_date,
@@ -5214,7 +5287,7 @@ function PublicChurchRegistrationPage({ token }: { token: string }) {
                   <UserRound />
                 </span>
                 <span>
-                  <span className="eyebrow">CADASTRO DE MEMBRO</span>
+                  <span className="eyebrow">CADASTRO DE PESSOA</span>
                   <h1>Vamos conhecer você</h1>
                   <p>
                     Preencha seus dados para se vincular à{" "}
@@ -5233,463 +5306,488 @@ function PublicChurchRegistrationPage({ token }: { token: string }) {
                 onChange={(event) => setWebsite(event.target.value)}
               />
 
-              <FormSection title="Dados pessoais">
-                <div className="form-grid public-form-grid">
-                  <Field
-                    label="Nome completo"
-                    required
-                    value={form.full_name}
-                    onChange={(full_name) => setForm({ ...form, full_name })}
-                  />
-                  <Field
-                    label="CPF"
-                    required
-                    value={form.document_cpf}
-                    onChange={(document_cpf) =>
-                      setForm({ ...form, document_cpf: maskCpf(document_cpf) })
-                    }
-                  />
-                  <Field
-                    label="Data de nascimento"
-                    required
-                    placeholder="dd/mm/aaaa"
-                    inputMode="numeric"
-                    value={form.birth_date}
-                    onChange={(birth_date) =>
-                      setForm({
-                        ...form,
-                        birth_date: maskBrazilianDate(birth_date),
-                      })
-                    }
-                  />
-                  <SelectField
-                    label="Sexo"
-                    required
-                    value={form.gender}
-                    options={["Homem", "Mulher", "Prefiro não informar"]}
-                    onChange={(gender) => setForm({ ...form, gender })}
-                  />
-                  <SelectField
-                    label="Escolaridade"
-                    required
-                    value={form.education}
-                    options={[
-                      "Ensino Fundamental",
-                      "Ensino Médio",
-                      "Ensino Superior",
-                      "Pós-graduação",
-                    ]}
-                    onChange={(education) => setForm({ ...form, education })}
-                  />
-                  <SelectField
-                    label="Estado civil"
-                    required
-                    value={form.marital_status}
-                    options={[
-                      "Solteiro(a)",
-                      "Casado(a)",
-                      "Divorciado(a)",
-                      "Viúvo(a)",
-                      "União estável",
-                    ]}
-                    onChange={(marital_status) =>
-                      setForm({
-                        ...form,
-                        marital_status,
-                        spouse_name:
-                          marital_status === "Casado(a)" ||
-                          marital_status === "União estável"
-                            ? form.spouse_name
-                            : "",
-                      })
-                    }
-                  />
-                  {(form.marital_status === "Casado(a)" ||
-                    form.marital_status === "União estável") && (
-                    <Field
-                      label="Nome completo do cônjuge"
-                      required
-                      value={form.spouse_name}
-                      onChange={(spouse_name) =>
-                        setForm({ ...form, spouse_name })
-                      }
+              <FormSection title="Como você está chegando?" required>
+                <p className="field-help">Escolha uma opção para continuar.</p>
+                <div className="check-grid public-category-grid">
+                  {["Visitante", "Membro", "Criança"].map((category) => (
+                    <CheckCard
+                      key={category}
+                      label={category}
+                      checked={registrationCategory === category}
+                      onChange={() => {
+                        setForm((current) => ({
+                          ...current,
+                          categories: [category],
+                          children:
+                            category === "Visitante" ? [] : current.children,
+                        }));
+                        if (category === "Visitante") setHasChildren(undefined);
+                      }}
                     />
-                  )}
+                  ))}
                 </div>
               </FormSection>
 
-              <FormSection title="Vínculo com a igreja" required>
-                <p className="field-help">Assinale pelo menos uma opção.</p>
-                <div className="check-grid public-category-grid">
-                  {["Membro", "Visitante", "Adolescente", "Criança"].map(
-                    (category) => (
-                      <CheckCard
-                        key={category}
-                        label={category}
-                        checked={form.categories.includes(category)}
-                        onChange={() =>
+              {registrationCategory && (
+                <FormSection title="Dados pessoais">
+                  <div className="form-grid public-form-grid">
+                    <Field
+                      label="Nome completo"
+                      required
+                      value={form.full_name}
+                      onChange={(full_name) => setForm({ ...form, full_name })}
+                    />
+                    {!isVisitor && (
+                      <Field
+                        label="CPF"
+                        required
+                        value={form.document_cpf}
+                        onChange={(document_cpf) =>
                           setForm({
                             ...form,
-                            categories: form.categories.includes(category)
-                              ? form.categories.filter(
-                                  (item) => item !== category,
-                                )
-                              : [...form.categories, category],
+                            document_cpf: maskCpf(document_cpf),
                           })
                         }
                       />
-                    ),
-                  )}
-                </div>
-              </FormSection>
+                    )}
+                    {!isVisitor && (
+                      <>
+                        <Field
+                          label="Data de nascimento"
+                          required
+                          placeholder="dd/mm/aaaa"
+                          inputMode="numeric"
+                          value={form.birth_date}
+                          onChange={(birth_date) =>
+                            setForm({
+                              ...form,
+                              birth_date: maskBrazilianDate(birth_date),
+                            })
+                          }
+                        />
+                        <SelectField
+                          label="Sexo"
+                          required
+                          value={form.gender}
+                          options={["Homem", "Mulher", "Prefiro não informar"]}
+                          onChange={(gender) => setForm({ ...form, gender })}
+                        />
+                        <SelectField
+                          label="Escolaridade"
+                          required
+                          value={form.education}
+                          options={[
+                            "Ensino Fundamental",
+                            "Ensino Médio",
+                            "Ensino Superior",
+                            "Pós-graduação",
+                          ]}
+                          onChange={(education) =>
+                            setForm({ ...form, education })
+                          }
+                        />
+                        <SelectField
+                          label="Estado civil"
+                          required
+                          value={form.marital_status}
+                          options={[
+                            "Solteiro(a)",
+                            "Casado(a)",
+                            "Divorciado(a)",
+                            "Viúvo(a)",
+                            "União estável",
+                          ]}
+                          onChange={(marital_status) =>
+                            setForm({
+                              ...form,
+                              marital_status,
+                              spouse_name:
+                                marital_status === "Casado(a)" ||
+                                marital_status === "União estável"
+                                  ? form.spouse_name
+                                  : "",
+                            })
+                          }
+                        />
+                        {(form.marital_status === "Casado(a)" ||
+                          form.marital_status === "União estável") && (
+                          <Field
+                            label="Nome completo do cônjuge"
+                            required
+                            value={form.spouse_name}
+                            onChange={(spouse_name) =>
+                              setForm({ ...form, spouse_name })
+                            }
+                          />
+                        )}
+                      </>
+                    )}
+                  </div>
+                </FormSection>
+              )}
 
-              <FormSection title="Filhos">
-                <div className="form-grid public-form-grid">
-                  <SelectField
-                    label="Possui filhos?"
-                    required
-                    value={
-                      hasChildren === undefined
-                        ? ""
-                        : hasChildren
-                          ? "Sim"
-                          : "Não"
-                    }
-                    options={["Sim", "Não"]}
-                    onChange={(value) => {
-                      const next = value === "Sim";
-                      setHasChildren(value ? next : undefined);
-                      setForm({
-                        ...form,
-                        children: next
-                          ? [
+              {registrationCategory && !isVisitor && (
+                <FormSection title="Filhos">
+                  <div className="form-grid public-form-grid">
+                    <SelectField
+                      label="Possui filhos?"
+                      required
+                      value={
+                        hasChildren === undefined
+                          ? ""
+                          : hasChildren
+                            ? "Sim"
+                            : "Não"
+                      }
+                      options={["Sim", "Não"]}
+                      onChange={(value) => {
+                        const next = value === "Sim";
+                        setHasChildren(value ? next : undefined);
+                        setForm({
+                          ...form,
+                          children: next
+                            ? [
+                                {
+                                  full_name: "",
+                                  birth_date: "",
+                                  gender: "",
+                                  document_cpf: "",
+                                },
+                              ]
+                            : [],
+                        });
+                      }}
+                    />
+                  </div>
+                  {hasChildren && (
+                    <div className="children-name-list">
+                      {form.children.map((child, index) => (
+                        <div className="family-child-card" key={index}>
+                          <div className="family-child-heading">
+                            <strong>Criança {index + 1}</strong>
+                            {form.children.length > 1 && (
+                              <button
+                                type="button"
+                                className="icon-only danger"
+                                aria-label={`Remover filho ${index + 1}`}
+                                onClick={() =>
+                                  setForm({
+                                    ...form,
+                                    children: form.children.filter(
+                                      (_, itemIndex) => itemIndex !== index,
+                                    ),
+                                  })
+                                }
+                              >
+                                <Trash2 />
+                              </button>
+                            )}
+                          </div>
+                          <div className="form-grid public-form-grid">
+                            <Field
+                              label={`Nome completo do filho ${index + 1}`}
+                              required
+                              value={child.full_name}
+                              onChange={(full_name) =>
+                                setForm({
+                                  ...form,
+                                  children: form.children.map(
+                                    (current, itemIndex) =>
+                                      itemIndex === index
+                                        ? { ...current, full_name }
+                                        : current,
+                                  ),
+                                })
+                              }
+                            />
+                            <Field
+                              label={`CPF do filho ${index + 1}`}
+                              required
+                              inputMode="numeric"
+                              value={child.document_cpf}
+                              onChange={(document_cpf) =>
+                                setForm({
+                                  ...form,
+                                  children: form.children.map(
+                                    (current, itemIndex) =>
+                                      itemIndex === index
+                                        ? {
+                                            ...current,
+                                            document_cpf: maskCpf(document_cpf),
+                                          }
+                                        : current,
+                                  ),
+                                })
+                              }
+                            />
+                            <Field
+                              label={`Data de nascimento do filho ${index + 1}`}
+                              required
+                              placeholder="dd/mm/aaaa"
+                              inputMode="numeric"
+                              value={child.birth_date}
+                              onChange={(birth_date) =>
+                                setForm({
+                                  ...form,
+                                  children: form.children.map(
+                                    (current, itemIndex) =>
+                                      itemIndex === index
+                                        ? {
+                                            ...current,
+                                            birth_date:
+                                              maskBrazilianDate(birth_date),
+                                          }
+                                        : current,
+                                  ),
+                                })
+                              }
+                            />
+                            <SelectField
+                              label={`Sexo do filho ${index + 1}`}
+                              required
+                              value={child.gender}
+                              options={[
+                                "Homem",
+                                "Mulher",
+                                "Prefiro não informar",
+                              ]}
+                              onChange={(gender) =>
+                                setForm({
+                                  ...form,
+                                  children: form.children.map(
+                                    (current, itemIndex) =>
+                                      itemIndex === index
+                                        ? { ...current, gender }
+                                        : current,
+                                  ),
+                                })
+                              }
+                            />
+                          </div>
+                          {personAge(child.birth_date) !== null && (
+                            <small className="child-age">
+                              Idade atual: {personAge(child.birth_date)} anos
+                            </small>
+                          )}
+                        </div>
+                      ))}
+                      <button
+                        type="button"
+                        className="secondary add-child-name"
+                        onClick={() =>
+                          setForm({
+                            ...form,
+                            children: [
+                              ...form.children,
                               {
                                 full_name: "",
                                 birth_date: "",
                                 gender: "",
                                 document_cpf: "",
                               },
-                            ]
-                          : [],
-                      });
-                    }}
-                  />
-                </div>
-                {hasChildren && (
-                  <div className="children-name-list">
-                    {form.children.map((child, index) => (
-                      <div className="family-child-card" key={index}>
-                        <div className="family-child-heading">
-                          <strong>Criança {index + 1}</strong>
-                          {form.children.length > 1 && (
-                            <button
-                              type="button"
-                              className="icon-only danger"
-                              aria-label={`Remover filho ${index + 1}`}
-                              onClick={() =>
-                                setForm({
-                                  ...form,
-                                  children: form.children.filter(
-                                    (_, itemIndex) => itemIndex !== index,
-                                  ),
-                                })
-                              }
-                            >
-                              <Trash2 />
-                            </button>
-                          )}
-                        </div>
-                        <div className="form-grid public-form-grid">
-                          <Field
-                            label={`CPF do filho ${index + 1}`}
-                            required
-                            inputMode="numeric"
-                            value={child.document_cpf}
-                            onChange={(document_cpf) =>
-                              setForm({
-                                ...form,
-                                children: form.children.map(
-                                  (current, itemIndex) =>
-                                    itemIndex === index
-                                      ? {
-                                          ...current,
-                                          document_cpf: maskCpf(document_cpf),
-                                        }
-                                      : current,
-                                ),
-                              })
-                            }
-                          />
-                          <Field
-                            label={`Nome completo do filho ${index + 1}`}
-                            required
-                            wide
-                            value={child.full_name}
-                            onChange={(full_name) =>
-                              setForm({
-                                ...form,
-                                children: form.children.map(
-                                  (current, itemIndex) =>
-                                    itemIndex === index
-                                      ? { ...current, full_name }
-                                      : current,
-                                ),
-                              })
-                            }
-                          />
-                          <Field
-                            label={`Data de nascimento do filho ${index + 1}`}
-                            required
-                            placeholder="dd/mm/aaaa"
-                            inputMode="numeric"
-                            value={child.birth_date}
-                            onChange={(birth_date) =>
-                              setForm({
-                                ...form,
-                                children: form.children.map(
-                                  (current, itemIndex) =>
-                                    itemIndex === index
-                                      ? {
-                                          ...current,
-                                          birth_date:
-                                            maskBrazilianDate(birth_date),
-                                        }
-                                      : current,
-                                ),
-                              })
-                            }
-                          />
-                          <SelectField
-                            label={`Sexo do filho ${index + 1}`}
-                            required
-                            value={child.gender}
-                            options={[
-                              "Homem",
-                              "Mulher",
-                              "Prefiro não informar",
-                            ]}
-                            onChange={(gender) =>
-                              setForm({
-                                ...form,
-                                children: form.children.map(
-                                  (current, itemIndex) =>
-                                    itemIndex === index
-                                      ? { ...current, gender }
-                                      : current,
-                                ),
-                              })
-                            }
-                          />
-                        </div>
-                        {personAge(child.birth_date) !== null && (
-                          <small className="child-age">
-                            Idade atual: {personAge(child.birth_date)} anos
-                          </small>
-                        )}
-                      </div>
-                    ))}
-                    <button
-                      type="button"
-                      className="secondary add-child-name"
-                      onClick={() =>
-                        setForm({
-                          ...form,
-                          children: [
-                            ...form.children,
-                            {
-                              full_name: "",
-                              birth_date: "",
-                              gender: "",
-                              document_cpf: "",
-                            },
-                          ],
-                        })
-                      }
-                    >
-                      <Plus /> Adicionar outro filho
-                    </button>
-                  </div>
-                )}
-              </FormSection>
+                            ],
+                          })
+                        }
+                      >
+                        <Plus /> Adicionar outro filho
+                      </button>
+                    </div>
+                  )}
+                </FormSection>
+              )}
 
-              <FormSection title="Contato">
-                <div className="form-grid public-form-grid">
-                  <Field
-                    label="Telefone WhatsApp"
-                    required
-                    value={form.phone_primary}
-                    onChange={(phone_primary) =>
-                      setForm({
-                        ...form,
-                        phone_primary: maskPhone(phone_primary),
-                      })
-                    }
-                  />
-                  <Field
-                    label="Telefone alternativo (opcional)"
-                    value={form.phone_secondary}
-                    onChange={(phone_secondary) =>
-                      setForm({
-                        ...form,
-                        phone_secondary: maskPhone(phone_secondary),
-                      })
-                    }
-                  />
-                  <Field
-                    label="E-mail"
-                    type="email"
-                    required
-                    wide
-                    value={form.email}
-                    onChange={(email) => setForm({ ...form, email })}
-                  />
-                </div>
-              </FormSection>
-
-              <FormSection title="Endereço">
-                <div className="form-grid public-form-grid">
-                  <CepField
-                    required
-                    value={form.address.zip}
-                    onChange={(value) => setAddress("zip", value)}
-                    onAddress={(found) =>
-                      setForm((current) => ({
-                        ...current,
-                        address: { ...current.address, ...found },
-                      }))
-                    }
-                  />
-                  <Field
-                    label="Rua / endereço"
-                    wide
-                    required
-                    value={form.address.street}
-                    onChange={(value) => setAddress("street", value)}
-                  />
-                  <Field
-                    label="Número"
-                    required
-                    value={form.address.number}
-                    onChange={(value) => setAddress("number", value)}
-                  />
-                  <Field
-                    label="Complemento"
-                    required
-                    value={form.address.complement}
-                    onChange={(value) => setAddress("complement", value)}
-                  />
-                  <Field
-                    label="Bairro"
-                    required
-                    value={form.address.district}
-                    onChange={(value) => setAddress("district", value)}
-                  />
-                  <Field
-                    label="Cidade"
-                    required
-                    value={form.address.city}
-                    onChange={(value) => setAddress("city", value)}
-                  />
-                  <Field
-                    label="Estado"
-                    required
-                    value={form.address.state}
-                    onChange={(value) => setAddress("state", value)}
-                  />
-                  <Field
-                    label="País"
-                    required
-                    value={form.address.country}
-                    onChange={(value) => setAddress("country", value)}
-                  />
-                </div>
-              </FormSection>
-
-              <FormSection title="Vida cristã">
-                <div className="form-grid public-form-grid">
-                  <Field
-                    label="Data de conversão"
-                    type="date"
-                    value={form.conversion_date}
-                    onChange={(conversion_date) =>
-                      setForm({ ...form, conversion_date })
-                    }
-                  />
-                  <Field
-                    label="Data do batismo"
-                    type="date"
-                    value={form.baptism_date}
-                    onChange={(baptism_date) =>
-                      setForm({ ...form, baptism_date })
-                    }
-                  />
-                </div>
-              </FormSection>
-
-              <FormSection title="Privacidade e contato">
-                <div className="public-consent-options">
-                  <label>
-                    <input
-                      type="checkbox"
+              {registrationCategory && (
+                <FormSection title="Contato">
+                  <div className="form-grid public-form-grid">
+                    <Field
+                      label="Telefone WhatsApp"
                       required
-                      checked={form.data_processing_consent}
-                      onChange={(event) =>
+                      value={form.phone_primary}
+                      onChange={(phone_primary) =>
                         setForm({
                           ...form,
-                          data_processing_consent: event.target.checked,
+                          phone_primary: maskPhone(phone_primary),
                         })
                       }
                     />
-                    <span>
-                      <strong>
-                        Autorizo o tratamento dos meus dados pessoais.
-                        <b className="required-mark" aria-hidden="true">
-                          {" "}
-                          *
-                        </b>
-                      </strong>
-                      <small>
-                        Necessário para manter minha ficha e realizar o cuidado
-                        e a comunicação da igreja, conforme a LGPD.
-                      </small>
-                    </span>
-                  </label>
-                  <label>
-                    <input
-                      type="checkbox"
-                      checked={form.messaging_consent}
-                      onChange={(event) =>
-                        setForm({
-                          ...form,
-                          messaging_consent: event.target.checked,
-                        })
+                    {!isVisitor && (
+                      <Field
+                        label="Telefone alternativo (opcional)"
+                        value={form.phone_secondary}
+                        onChange={(phone_secondary) =>
+                          setForm({
+                            ...form,
+                            phone_secondary: maskPhone(phone_secondary),
+                          })
+                        }
+                      />
+                    )}
+                    {!isVisitor && (
+                      <Field
+                        label="E-mail"
+                        type="email"
+                        required
+                        wide
+                        value={form.email}
+                        onChange={(email) => setForm({ ...form, email })}
+                      />
+                    )}
+                  </div>
+                </FormSection>
+              )}
+
+              {registrationCategory && !isVisitor && (
+                <FormSection title="Endereço">
+                  <div className="form-grid public-form-grid">
+                    <CepField
+                      required
+                      value={form.address.zip}
+                      onChange={(value) => setAddress("zip", value)}
+                      onAddress={(found) =>
+                        setForm((current) => ({
+                          ...current,
+                          address: { ...current.address, ...found },
+                        }))
                       }
                     />
-                    <span>
-                      <strong>Aceito receber mensagens da igreja.</strong>
-                      <small>
-                        Este consentimento é opcional e pode ser alterado
-                        depois.
-                      </small>
-                    </span>
-                  </label>
-                </div>
-              </FormSection>
+                    <Field
+                      label="Rua / endereço"
+                      wide
+                      required
+                      value={form.address.street}
+                      onChange={(value) => setAddress("street", value)}
+                    />
+                    <Field
+                      label="Número"
+                      required
+                      value={form.address.number}
+                      onChange={(value) => setAddress("number", value)}
+                    />
+                    <Field
+                      label="Complemento"
+                      required
+                      value={form.address.complement}
+                      onChange={(value) => setAddress("complement", value)}
+                    />
+                    <Field
+                      label="Bairro"
+                      required
+                      value={form.address.district}
+                      onChange={(value) => setAddress("district", value)}
+                    />
+                    <Field
+                      label="Cidade"
+                      required
+                      value={form.address.city}
+                      onChange={(value) => setAddress("city", value)}
+                    />
+                    <Field
+                      label="Estado"
+                      required
+                      value={form.address.state}
+                      onChange={(value) => setAddress("state", value)}
+                    />
+                    <Field
+                      label="País"
+                      required
+                      value={form.address.country}
+                      onChange={(value) => setAddress("country", value)}
+                    />
+                  </div>
+                </FormSection>
+              )}
+
+              {registrationCategory && !isVisitor && (
+                <FormSection title="Vida cristã">
+                  <div className="form-grid public-form-grid">
+                    <Field
+                      label="Data de conversão"
+                      type="date"
+                      value={form.conversion_date}
+                      onChange={(conversion_date) =>
+                        setForm({ ...form, conversion_date })
+                      }
+                    />
+                    <Field
+                      label="Data do batismo"
+                      type="date"
+                      value={form.baptism_date}
+                      onChange={(baptism_date) =>
+                        setForm({ ...form, baptism_date })
+                      }
+                    />
+                  </div>
+                </FormSection>
+              )}
+
+              {registrationCategory && (
+                <FormSection title="Privacidade e contato">
+                  <div className="public-consent-options">
+                    <label>
+                      <input
+                        type="checkbox"
+                        required
+                        checked={form.data_processing_consent}
+                        onChange={(event) =>
+                          setForm({
+                            ...form,
+                            data_processing_consent: event.target.checked,
+                          })
+                        }
+                      />
+                      <span>
+                        <strong>
+                          Autorizo o tratamento dos meus dados pessoais.
+                          <b className="required-mark" aria-hidden="true">
+                            {" "}
+                            *
+                          </b>
+                        </strong>
+                        <small>
+                          Necessário para manter minha ficha e realizar o
+                          cuidado e a comunicação da igreja, conforme a LGPD.
+                        </small>
+                      </span>
+                    </label>
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={form.messaging_consent}
+                        onChange={(event) =>
+                          setForm({
+                            ...form,
+                            messaging_consent: event.target.checked,
+                          })
+                        }
+                      />
+                      <span>
+                        <strong>Aceito receber mensagens da igreja.</strong>
+                        <small>
+                          Este consentimento é opcional e pode ser alterado
+                          depois.
+                        </small>
+                      </span>
+                    </label>
+                  </div>
+                </FormSection>
+              )}
 
               <p className="public-legal-note">
                 Seus dados serão vinculados somente à {registration.church_name}
                 . O envio não cria acesso administrativo ao sistema.
               </p>
-              <button className="primary wide" disabled={loading}>
-                {loading ? (
-                  <LoaderCircle className="spin" />
-                ) : (
-                  <>
-                    <Check />
-                    <span>Enviar meu cadastro</span>
-                  </>
-                )}
-              </button>
+              {registrationCategory && (
+                <button className="primary wide" disabled={loading}>
+                  {loading ? (
+                    <LoaderCircle className="spin" />
+                  ) : (
+                    <>
+                      <Check />
+                      <span>Enviar meu cadastro</span>
+                    </>
+                  )}
+                </button>
+              )}
             </form>
           )
         )}
@@ -5951,10 +6049,7 @@ function Agenda({
             </div>
             <div className="calendar-grid">
               {days.map((day, i) => (
-                <div
-                  className="calendar-day"
-                  key={i}
-                >
+                <div className="calendar-day" key={i}>
                   {day && (
                     <button
                       type="button"
