@@ -1605,8 +1605,7 @@ function PersonDetail({
   canDelete: boolean;
   onDelete: () => void;
 }) {
-  const [tab, setTab] = useState<"info" | "church" | "consent">("info"),
-    age = person.birth_date
+  const age = person.birth_date
       ? Math.floor(
           (Date.now() - new Date(person.birth_date).getTime()) / 31557600000,
         )
@@ -1665,6 +1664,12 @@ function PersonDetail({
             <Pencil />
             Editar cadastro
           </button>
+          <button
+            className="secondary"
+            onClick={() => printPersonRegistrationForm(person, data)}
+          >
+            <Printer /> Imprimir ficha para assinatura
+          </button>
         </div>
       </div>
       <section className="profile-hero card">
@@ -1696,215 +1701,185 @@ function PersonDetail({
         </b>
       </section>
       <div className="detail-tabs">
-        <button
-          className={tab === "info" ? "active" : ""}
-          onClick={() => setTab("info")}
-        >
-          Informações e vida na igreja
-        </button>
-        <button
-          className={tab === "consent" ? "active" : ""}
-          onClick={() => setTab("consent")}
-        >
-          Consentimentos LGPD
-        </button>
+        <button className="active">Informações e vida na igreja</button>
       </div>
-      {tab === "info" && (
-        <div className="detail-grid">
-          <InfoCard
-            title={isChild ? "Dados da criança" : "Dados pessoais"}
-            icon={UserRound}
-            rows={
-              isChild
-                ? [
-                    ["CPF", maskCpf(person.document_cpf ?? "")],
-                    [
-                      "Nascimento",
-                      person.birth_date
-                        ? formatDate(person.birth_date)
-                        : undefined,
-                    ],
-                    ["Sexo", person.gender],
-                    ["Responsáveis", guardiansSummary || undefined],
-                  ]
-                : [
-                    [
-                      "Nascimento",
-                      person.birth_date
-                        ? formatDate(person.birth_date)
-                        : undefined,
-                    ],
-                    ["Sexo", person.gender],
-                    ["Escolaridade", person.education],
-                    ["Estado civil", person.marital_status],
-                    ["Cônjuge", person.spouse_name],
-                    ["Filhos", person.children_names?.join(", ")],
-                    ["CPF", maskCpf(person.document_cpf ?? "")],
-                  ]
-            }
-          />
-          <InfoCard
-            title="Contato e endereço"
-            icon={Phone}
-            rows={[
-              [
-                "Telefone WhatsApp",
-                person.phone_primary
-                  ? maskPhone(person.phone_primary)
-                  : undefined,
-              ],
-              [
-                "Telefone alternativo",
-                person.phone_secondary
-                  ? maskPhone(person.phone_secondary)
-                  : undefined,
-              ],
-              ["E-mail", person.email],
-              [
-                "Endereço",
-                [person.address.street, person.address.number]
-                  .filter(Boolean)
-                  .join(", "),
-              ],
-              ["Bairro", person.address.district],
-              ["Complemento", person.address.complement],
-              ["CEP", person.address.zip],
-              [
-                "Cidade/UF",
-                [person.address.city, person.address.state]
-                  .filter(Boolean)
-                  .join(" / "),
-              ],
-              ["País", person.address.country],
-            ]}
-          />
-          <InfoCard
-            title="Informações complementares"
-            icon={Pencil}
-            rows={[["Informações que acha importante", person.notes]]}
-          />
-        </div>
-      )}
-      {tab === "info" && (
-        <div className="detail-grid">
-          <InfoCard
-            title="Jornada espiritual"
-            icon={BookOpen}
-            rows={[
-              [
-                "Data de conversão",
-                person.conversion_date
-                  ? formatDate(person.conversion_date)
-                  : undefined,
-              ],
-              [
-                "Data do batismo",
-                person.baptism_date
-                  ? formatDate(person.baptism_date)
-                  : undefined,
-              ],
-              ["Categorias", person.categories.join(", ")],
-            ]}
-          />
-          <section className="card info-card">
-            <h2>
-              <Building2 />
-              Departamentos
-            </h2>
-            {personDepartments.map((membership) => (
-              <div className="simple-row" key={membership.department_id}>
-                <span className="metric-icon">
-                  <Building2 />
-                </span>
-                <span>
-                  <strong>{membership.department?.name}</strong>
-                  <small>
-                    Cargo: {membership.role?.title ?? "Não informado"}
-                    {membership.can_manage ? " • Líder gestor" : ""}
-                    {membership.joined_at
-                      ? ` • Desde ${formatDate(membership.joined_at)}`
-                      : ""}
-                  </small>
-                </span>
-              </div>
-            ))}
-            {!personDepartments.length && (
-              <p className="inline-empty">Nenhum departamento vinculado.</p>
-            )}
-          </section>
-          <section className="card info-card">
-            <h2>
-              <GraduationCap />
-              Grupos de ensino
-            </h2>
-            {personGroups.map((g) => (
-              <div className="simple-row" key={g.id}>
-                <span className="metric-icon">
-                  <BookOpen />
-                </span>
-                <span>
-                  <strong>{g.name}</strong>
-                  <small>
-                    {g.track} • Cargo:{" "}
-                    {person.group_roles?.[g.id] ?? "Aluno(a)"}
-                  </small>
-                </span>
-              </div>
-            ))}
-            {!personGroups.length && (
-              <p className="inline-empty">Nenhum grupo vinculado.</p>
-            )}
-          </section>
-          <section className="card info-card">
-            <h2>
-              <ClipboardCheck />
-              Histórico de grupos de ensino
-            </h2>
-            {groupHistory.map((entry) => (
-              <div className="simple-row" key={entry.id}>
-                <span className="metric-icon">
-                  {entry.action === "joined" ? <Plus /> : <X />}
-                </span>
-                <span>
-                  <strong>{entry.group_name}</strong>
-                  <small>
-                    {entry.action === "joined"
-                      ? "Entrou no grupo"
-                      : "Saiu do grupo"}
-                    {entry.role_title ? ` • ${entry.role_title}` : ""} •{" "}
-                    {dateTime(entry.occurred_at)}
-                  </small>
-                </span>
-              </div>
-            ))}
-            {!groupHistory.length && (
-              <p className="inline-empty">
-                Nenhuma participação em grupo registrada.
-              </p>
-            )}
-          </section>
-        </div>
-      )}
-      {tab === "consent" && (
-        <section className="card consent-panel">
-          <h2>Preferências e bases de consentimento</h2>
-          <p>Autorizações expressas registradas para esta pessoa.</p>
-          <div className="consent-grid">
-            {consentLabels.map(([key, label]) => (
-              <div
-                className={person.consent[key] ? "allowed" : "denied"}
-                key={key}
-              >
-                <span>{person.consent[key] ? <Check /> : <X />}</span>
-                <strong>{label}</strong>
+      <div className="detail-grid">
+        <InfoCard
+          title={isChild ? "Dados da criança" : "Dados pessoais"}
+          icon={UserRound}
+          rows={
+            isChild
+              ? [
+                  ["CPF", maskCpf(person.document_cpf ?? "")],
+                  [
+                    "Nascimento",
+                    person.birth_date
+                      ? formatDate(person.birth_date)
+                      : undefined,
+                  ],
+                  ["Sexo", person.gender],
+                  ["Responsáveis", guardiansSummary || undefined],
+                ]
+              : [
+                  [
+                    "Nascimento",
+                    person.birth_date
+                      ? formatDate(person.birth_date)
+                      : undefined,
+                  ],
+                  ["Sexo", person.gender],
+                  ["Escolaridade", person.education],
+                  ["Estado civil", person.marital_status],
+                  ["Cônjuge", person.spouse_name],
+                  ["Filhos", person.children_names?.join(", ")],
+                  ["CPF", maskCpf(person.document_cpf ?? "")],
+                ]
+          }
+        />
+        <InfoCard
+          title="Contato e endereço"
+          icon={Phone}
+          rows={[
+            [
+              "Telefone WhatsApp",
+              person.phone_primary
+                ? maskPhone(person.phone_primary)
+                : undefined,
+            ],
+            [
+              "Telefone alternativo",
+              person.phone_secondary
+                ? maskPhone(person.phone_secondary)
+                : undefined,
+            ],
+            ["E-mail", person.email],
+            [
+              "Endereço",
+              [person.address.street, person.address.number]
+                .filter(Boolean)
+                .join(", "),
+            ],
+            ["Bairro", person.address.district],
+            ["Complemento", person.address.complement],
+            ["CEP", person.address.zip],
+            [
+              "Cidade/UF",
+              [person.address.city, person.address.state]
+                .filter(Boolean)
+                .join(" / "),
+            ],
+            ["País", person.address.country],
+          ]}
+        />
+        <InfoCard
+          title="Informações complementares"
+          icon={Pencil}
+          rows={[["Informações que acha importante", person.notes]]}
+        />
+      </div>
+      <div className="detail-grid">
+        <InfoCard
+          title="Jornada espiritual"
+          icon={BookOpen}
+          rows={[
+            [
+              "Data de conversão",
+              person.conversion_date
+                ? formatDate(person.conversion_date)
+                : undefined,
+            ],
+            [
+              "É batizado(a)?",
+              person.baptized === undefined
+                ? undefined
+                : person.baptized
+                  ? "Sim"
+                  : "Não",
+            ],
+            [
+              "Data do batismo",
+              person.baptism_date ? formatDate(person.baptism_date) : undefined,
+            ],
+            ["Categorias", person.categories.join(", ")],
+          ]}
+        />
+        <section className="card info-card">
+          <h2>
+            <Building2 />
+            Departamentos
+          </h2>
+          {personDepartments.map((membership) => (
+            <div className="simple-row" key={membership.department_id}>
+              <span className="metric-icon">
+                <Building2 />
+              </span>
+              <span>
+                <strong>{membership.department?.name}</strong>
                 <small>
-                  {person.consent[key] ? "Autorizado" : "Não autorizado"}
+                  Cargo: {membership.role?.title ?? "Não informado"}
+                  {membership.can_manage ? " • Líder gestor" : ""}
+                  {membership.joined_at
+                    ? ` • Desde ${formatDate(membership.joined_at)}`
+                    : ""}
                 </small>
-              </div>
-            ))}
-          </div>
+              </span>
+            </div>
+          ))}
+          {!personDepartments.length && (
+            <p className="inline-empty">Nenhum departamento vinculado.</p>
+          )}
         </section>
-      )}
+        <section className="card info-card">
+          <h2>
+            <GraduationCap />
+            Grupos de ensino
+          </h2>
+          {personGroups.map((g) => (
+            <div className="simple-row" key={g.id}>
+              <span className="metric-icon">
+                <BookOpen />
+              </span>
+              <span>
+                <strong>{g.name}</strong>
+                <small>
+                  {g.track} • Cargo: {person.group_roles?.[g.id] ?? "Aluno(a)"}
+                </small>
+              </span>
+            </div>
+          ))}
+          {!personGroups.length && (
+            <p className="inline-empty">Nenhum grupo vinculado.</p>
+          )}
+        </section>
+        <section className="card info-card">
+          <h2>
+            <ClipboardCheck />
+            Histórico de grupos de ensino
+          </h2>
+          {groupHistory.map((entry) => (
+            <div className="simple-row" key={entry.id}>
+              <span className="metric-icon">
+                {entry.action === "joined" ? <Plus /> : <X />}
+              </span>
+              <span>
+                <strong>{entry.group_name}</strong>
+                <small>
+                  {entry.action === "joined"
+                    ? "Entrou no grupo"
+                    : "Saiu do grupo"}
+                  {entry.role_title ? ` • ${entry.role_title}` : ""} •{" "}
+                  {dateTime(entry.occurred_at)}
+                </small>
+              </span>
+            </div>
+          ))}
+          {!groupHistory.length && (
+            <p className="inline-empty">
+              Nenhuma participação em grupo registrada.
+            </p>
+          )}
+        </section>
+      </div>
     </>
   );
 }
@@ -1934,15 +1909,65 @@ function InfoCard({
     </section>
   );
 }
-const consentLabels: [keyof Person["consent"], string][] = [
-  ["data_processing", "Tratamento dos dados pessoais"],
-  ["messaging", "Receber mensagens da igreja"],
-  ["representatives_contact", "Contato por representantes"],
-  ["event_photography", "Fotografia em eventos"],
-  ["event_filming", "Filmagem em eventos"],
-  ["social_media_image", "Uso de imagem nas redes sociais"],
-  ["marketing", "Ações de comunicação e marketing"],
-];
+
+function printPersonRegistrationForm(person: Person, data: WorkspaceData) {
+  const popup = window.open("", "_blank");
+  if (!popup) return;
+  const church = data.churches.find((item) => item.id === person.church_id);
+  const safe = (value?: string | number | null) =>
+    String(value ?? "Não informado")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  const address = [
+    person.address.street,
+    person.address.number,
+    person.address.complement,
+    person.address.district,
+    person.address.city,
+    person.address.state,
+    person.address.zip,
+  ]
+    .filter(Boolean)
+    .join(", ");
+  const baptized =
+    person.baptized === undefined
+      ? "Não informado"
+      : person.baptized
+        ? "Sim"
+        : "Não";
+  popup.document
+    .write(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Ficha de cadastro — ${safe(person.full_name)}</title><style>
+    @page{size:A4;margin:12mm}*{box-sizing:border-box}body{font:11px Arial,sans-serif;color:#172b27;margin:0;line-height:1.35}header{border-bottom:3px solid #177356;padding-bottom:9px;margin-bottom:11px}h1{font-size:19px;margin:0 0 2px}h2{font-size:12px;margin:12px 0 6px;padding:5px 7px;background:#edf4f1;text-transform:uppercase}.muted{color:#5d6f69}.grid{display:grid;grid-template-columns:1fr 1fr;gap:5px 18px}.field{border-bottom:1px solid #ccd8d4;padding:3px 1px;min-height:24px}.field b{display:block;font-size:8px;text-transform:uppercase;color:#5d6f69}.choice{margin:5px 0}.legal{font-size:9.5px;text-align:justify}.notice{font-size:9px;font-style:italic;color:#445752}.page-break{break-before:page}.signature-grid{display:grid;grid-template-columns:1fr 1fr;gap:28px;margin-top:35px}.signature{border-top:1px solid #172b27;padding-top:4px}.admin{margin-top:18px;border:1px solid #ccd8d4;padding:9px}.footer{margin-top:12px;padding-top:6px;border-top:1px solid #ccd8d4;font-size:8px;color:#5d6f69}button{margin-top:14px;padding:9px 16px}@media print{button{display:none}}
+  </style></head><body><header><h1>${safe(church?.name || "Igreja")} — Ficha de cadastro</h1><div class="muted">Dados da pessoa e termos para leitura, manifestação e assinatura</div></header>
+  <h2>I — Dados pessoais</h2><div class="grid">
+    <div class="field"><b>Nome completo</b>${safe(person.full_name)}</div><div class="field"><b>CPF</b>${safe(person.document_cpf)}</div>
+    <div class="field"><b>Data de nascimento</b>${safe(person.birth_date ? formatDate(person.birth_date) : undefined)}</div><div class="field"><b>Sexo</b>${safe(person.gender)}</div>
+    <div class="field"><b>Escolaridade</b>${safe(person.education)}</div><div class="field"><b>Estado civil</b>${safe(person.marital_status)}</div>
+    <div class="field"><b>Cônjuge</b>${safe(person.spouse_name)}</div><div class="field"><b>Filhos</b>${safe(person.children_names?.join(", "))}</div>
+  </div><h2>II — Contato e endereço</h2><div class="grid">
+    <div class="field"><b>Telefone / WhatsApp</b>${safe(person.phone_primary)}</div><div class="field"><b>Telefone alternativo</b>${safe(person.phone_secondary)}</div>
+    <div class="field"><b>E-mail</b>${safe(person.email)}</div><div class="field"><b>Endereço</b>${safe(address)}</div>
+  </div><h2>III — Vida eclesiástica</h2><div class="grid">
+    <div class="field"><b>Vínculo</b>${safe(person.categories.join(", "))}</div><div class="field"><b>Data de conversão</b>${safe(person.conversion_date ? formatDate(person.conversion_date) : undefined)}</div>
+    <div class="field"><b>É batizado(a)?</b>${safe(baptized)}</div><div class="field"><b>Data do batismo</b>${safe(person.baptism_date ? formatDate(person.baptism_date) : person.baptized ? undefined : "Não se aplica")}</div>
+  </div><h2>IV — Informações complementares</h2><div class="field">${safe(person.notes)}</div>
+  <div class="page-break"><h2>V — Comunicação com a igreja</h2>
+    <div class="choice">Autoriza contato por telefone/WhatsApp para cultos, reuniões, eventos, atividades e acompanhamento da igreja? &nbsp; ☐ Sim &nbsp; ☐ Não</div>
+    <div class="choice">Autoriza o recebimento de comunicações por e-mail? &nbsp; ☐ Sim &nbsp; ☐ Não</div>
+    <div class="choice">Autoriza a inclusão do seu número em grupos oficiais de WhatsApp relacionados às atividades da igreja? &nbsp; ☐ Sim &nbsp; ☐ Não</div>
+    <p class="notice">Ao participar de grupos de WhatsApp, o número de telefone, nome e demais informações disponibilizadas no aplicativo poderão ficar visíveis aos demais participantes, conforme as configurações do próprio aplicativo.</p>
+    <h2>VI — Autorização de uso de imagem e voz</h2><p class="legal">Autoriza ${safe(church?.name || "a igreja")} a captar e utilizar sua imagem e/ou voz em fotografias, vídeos e gravações realizados em cultos, reuniões, eventos e demais atividades da igreja? &nbsp; ☐ Sim &nbsp; ☐ Não</p><p class="legal">Em caso de autorização, a imagem e/ou voz poderão ser utilizadas gratuitamente para fins institucionais, religiosos, informativos e de divulgação das atividades da igreja, inclusive em redes sociais, site, transmissões e materiais impressos oficiais. A autorização não permite uso ofensivo, descontextualizado ou para finalidade comercial alheia às atividades da igreja e poderá ser revogada para utilizações futuras mediante solicitação do titular, observadas as limitações legais e técnicas.</p>
+    <h2>VII — Proteção de dados pessoais — LGPD</h2><p class="legal">${safe(church?.name || "A igreja")}, na qualidade de controladora, informa que os dados fornecidos nesta ficha serão tratados para cadastro, organização administrativa, comunicação, acompanhamento e desenvolvimento das atividades eclesiásticas, pastorais e ministeriais. Informações relacionadas à convicção, vínculo e participação religiosa podem constituir dados pessoais sensíveis nos termos da Lei nº 13.709/2018 (LGPD).</p><p class="legal">Os dados serão usados para finalidades legítimas e específicas, com acesso limitado a pessoas autorizadas e medidas adequadas de segurança. Não serão comercializados nem usados para finalidade incompatível com a informada. O titular poderá solicitar informações, acesso, correção e exercer os demais direitos previstos na LGPD pelos canais oficiais da igreja.</p>
+    <h2>VIII — Consentimento para dados da vida eclesiástica</h2><p class="legal">Autorizo, de forma livre, informada, específica e destacada, o tratamento das informações de natureza religiosa e eclesiástica fornecidas nesta ficha para fins de cadastro, acompanhamento e organização das atividades da igreja.</p><div class="choice" style="text-align:center;font-weight:bold">☐ AUTORIZO &nbsp;&nbsp;&nbsp;&nbsp; ☐ NÃO AUTORIZO</div>
+    <h2>IX — Declaração final</h2><p class="legal">Declaro que as informações fornecidas nesta ficha são verdadeiras e que tive acesso às informações sobre as finalidades do cadastro, as formas de comunicação, a utilização de imagem e voz e o tratamento dos dados pessoais.</p>
+    <div class="signature-grid"><div class="signature">Nome do participante: ${safe(person.full_name)}</div><div class="signature">Data: ____/____/________</div><div class="signature">Assinatura do participante ou responsável</div><div class="signature">Responsável pelo cadastro</div></div>
+    <div class="admin"><b>Uso interno da igreja</b><br><br>Data de recebimento: ____/____/________ &nbsp;&nbsp; Observações administrativas: ________________________________________________</div>
+  </div><div class="footer">Ficha ${safe(person.id)} • Documento gerado em ${safe(new Date().toLocaleString("pt-BR"))}${church?.document ? ` • Documento da igreja: ${safe(church.document)}` : ""}</div><button onclick="window.print()">Imprimir / salvar em PDF</button></body></html>`);
+  popup.document.close();
+}
 
 function PersonForm({
   churchId,
@@ -1982,9 +2007,6 @@ function PersonForm({
             consent: { ...emptyConsent },
           },
     ),
-    [section, setSection] = useState<"personal" | "church" | "consent">(
-      "personal",
-    ),
     [hasChildren, setHasChildren] = useState<boolean | undefined>(
       initial
         ? Boolean(initial.children_names?.length || familyChildren.length)
@@ -2020,53 +2042,6 @@ function PersonForm({
         ...prev,
         address: { ...prev.address, [key]: value },
       }));
-  function continueForm(event: React.MouseEvent<HTMLButtonElement>) {
-    setFormError("");
-    const formElement = event.currentTarget.closest("form");
-    if (!formElement?.reportValidity()) return;
-    if (section === "personal") {
-      if (!personCategory) {
-        showFormError("Escolha Visitante, Membro ou Criança.");
-        return;
-      }
-      if ((form.phone_primary?.replace(/\D/g, "").length ?? 0) < 10) {
-        showFormError("Informe um telefone WhatsApp válido.");
-        return;
-      }
-      if (isVisitor) {
-        setSection("consent");
-        return;
-      }
-      if (!brazilianDateToIso(form.birth_date)) {
-        showFormError("Informe uma data de nascimento válida em dd/mm/aaaa.");
-        return;
-      }
-      if (hasChildren === undefined) {
-        showFormError("Informe se a pessoa possui filhos.");
-        return;
-      }
-      const childrenError = hasChildren ? familyChildrenError(children) : "";
-      if (childrenError) {
-        showFormError(childrenError);
-        return;
-      }
-      const familyCpfs = [
-        form.document_cpf?.replace(/\D/g, "") ?? "",
-        ...children.map((child) => child.document_cpf.replace(/\D/g, "")),
-      ];
-      if (new Set(familyCpfs).size !== familyCpfs.length) {
-        showFormError("Cada pessoa da família precisa ter um CPF diferente.");
-        return;
-      }
-      setSection("consent");
-      return;
-    }
-    if (!form.categories.length) {
-      showFormError("Assinale Membro, Visitante, Adolescente ou Criança.");
-      return;
-    }
-    setSection("consent");
-  }
   return (
     <ModalShell
       title={initial ? "Editar pessoa" : "Nova pessoa"}
@@ -2078,7 +2053,6 @@ function PersonForm({
         onSubmit={(e) => {
           e.preventDefault();
           if (!personCategory) {
-            setSection("personal");
             showFormError("Escolha Visitante, Membro ou Criança.");
             return;
           }
@@ -2086,7 +2060,6 @@ function PersonForm({
             form.full_name.trim().length < 3 ||
             (form.phone_primary?.replace(/\D/g, "").length ?? 0) < 10
           ) {
-            setSection("personal");
             showFormError("Informe o nome completo e um telefone válido.");
             return;
           }
@@ -2094,15 +2067,21 @@ function PersonForm({
             ? undefined
             : brazilianDateToIso(form.birth_date);
           if (!isVisitor && !birthDate) {
-            setSection("personal");
             showFormError("Informe uma data de nascimento válida.");
             return;
           }
           const childrenError =
             !isVisitor && hasChildren ? familyChildrenError(children) : "";
           if (childrenError) {
-            setSection("personal");
             showFormError(childrenError);
+            return;
+          }
+          if (!isVisitor && form.baptized === undefined) {
+            showFormError("Informe se a pessoa é batizada.");
+            return;
+          }
+          if (!isVisitor && form.baptized && !form.baptism_date) {
+            showFormError("Informe a data do batismo.");
             return;
           }
           const preparedChildren = (isVisitor ? [] : children).map((child) => ({
@@ -2132,24 +2111,8 @@ function PersonForm({
           );
         }}
       >
-        <div className="form-tabs">
-          <button
-            type="button"
-            className={section === "personal" ? "active" : ""}
-            onClick={() => setSection("personal")}
-          >
-            1. Cadastro completo
-          </button>
-          <button
-            type="button"
-            className={section === "consent" ? "active" : ""}
-            onClick={() => setSection("consent")}
-          >
-            2. Consentimentos
-          </button>
-        </div>
         <div className="form-scroll">
-          {section === "personal" && (
+          {
             <>
               <FormSection title="Vínculo com a igreja" required>
                 <p className="field-help">Escolha uma opção para continuar.</p>
@@ -2172,12 +2135,6 @@ function PersonForm({
               </FormSection>
               <FormSection title="Identificação">
                 <div className="form-grid">
-                  <Field
-                    label="Nome completo"
-                    required
-                    value={form.full_name}
-                    onChange={(v) => set("full_name", v)}
-                  />
                   {!isVisitor && (
                     <Field
                       label="CPF"
@@ -2186,6 +2143,12 @@ function PersonForm({
                       onChange={(v) => set("document_cpf", maskCpf(v))}
                     />
                   )}
+                  <Field
+                    label="Nome completo"
+                    required
+                    value={form.full_name}
+                    onChange={(v) => set("full_name", v)}
+                  />
                   {!isVisitor && (
                     <Field
                       label="Data de nascimento"
@@ -2312,20 +2275,6 @@ function PersonForm({
                           </div>
                           <div className="form-grid">
                             <Field
-                              label={`Nome completo do filho ${index + 1}`}
-                              required
-                              value={child.full_name}
-                              onChange={(full_name) =>
-                                setChildren(
-                                  children.map((current, itemIndex) =>
-                                    itemIndex === index
-                                      ? { ...current, full_name }
-                                      : current,
-                                  ),
-                                )
-                              }
-                            />
-                            <Field
                               label={`CPF do filho ${index + 1}`}
                               required
                               inputMode="numeric"
@@ -2370,6 +2319,20 @@ function PersonForm({
                                     `${existingChild.full_name} já está cadastrado(a). Ao salvar, esta pessoa será adicionada como outro responsável.`,
                                   );
                               }}
+                            />
+                            <Field
+                              label={`Nome completo do filho ${index + 1}`}
+                              required
+                              value={child.full_name}
+                              onChange={(full_name) =>
+                                setChildren(
+                                  children.map((current, itemIndex) =>
+                                    itemIndex === index
+                                      ? { ...current, full_name }
+                                      : current,
+                                  ),
+                                )
+                              }
                             />
                             <Field
                               label={`Data de nascimento do filho ${index + 1}`}
@@ -2532,8 +2495,8 @@ function PersonForm({
                 </FormSection>
               )}
             </>
-          )}
-          {section === "personal" && (
+          }
+          {
             <>
               {!isVisitor && (
                 <FormSection title="Jornada espiritual">
@@ -2544,15 +2507,36 @@ function PersonForm({
                       value={form.conversion_date}
                       onChange={(v) => set("conversion_date", v)}
                     />
-                    <Field
-                      label="Data do batismo"
-                      type="date"
-                      value={form.baptism_date}
-                      onChange={(v) => {
-                        set("baptism_date", v);
-                        set("baptized", v ? true : undefined);
-                      }}
+                    <SelectField
+                      label="É batizado(a)?"
+                      required
+                      raw
+                      value={
+                        form.baptized === undefined
+                          ? ""
+                          : form.baptized
+                            ? "yes"
+                            : "no"
+                      }
+                      options={["yes|Sim", "no|Não"]}
+                      onChange={(value) =>
+                        setForm((current) => ({
+                          ...current,
+                          baptized: value ? value === "yes" : undefined,
+                          baptism_date:
+                            value === "yes" ? current.baptism_date : undefined,
+                        }))
+                      }
                     />
+                    {form.baptized && (
+                      <Field
+                        label="Data do batismo"
+                        type="date"
+                        required
+                        value={form.baptism_date}
+                        onChange={(v) => set("baptism_date", v)}
+                      />
+                    )}
                   </div>
                 </FormSection>
               )}
@@ -2573,63 +2557,15 @@ function PersonForm({
                 onChange={() => set("active", !form.active)}
               />
             </>
-          )}
-          {section === "consent" && (
-            <>
-              <div className="privacy-note">
-                <ShieldCheck />
-                <span>
-                  <strong>Privacidade por padrão</strong>Marque somente
-                  autorizações dadas de forma clara.
-                </span>
-              </div>
-              <div className="consent-form">
-                {consentLabels.map(([key, label]) => (
-                  <label key={key}>
-                    <span>
-                      <strong>{label}</strong>
-                      <small>
-                        Pode ser alterado ou revogado a qualquer momento.
-                      </small>
-                    </span>
-                    <input
-                      type="checkbox"
-                      checked={form.consent[key]}
-                      onChange={() =>
-                        setForm((prev) => ({
-                          ...prev,
-                          consent: {
-                            ...prev.consent,
-                            [key]: !prev.consent[key],
-                          },
-                        }))
-                      }
-                    />
-                  </label>
-                ))}
-              </div>
-            </>
-          )}
+          }
         </div>
         <div className="modal-actions">
           <button type="button" className="secondary" onClick={onClose}>
             Cancelar
           </button>
-          {section !== "consent" ? (
-            <button
-              key="continue"
-              type="button"
-              className="primary"
-              onClick={continueForm}
-            >
-              Continuar <ChevronRight />
-            </button>
-          ) : (
-            <button key="save" type="submit" className="primary">
-              <Check />
-              Salvar pessoa
-            </button>
-          )}
+          <button key="save" type="submit" className="primary">
+            <Check /> Salvar pessoa
+          </button>
         </div>
       </form>
     </ModalShell>
@@ -5141,6 +5077,7 @@ function PublicChurchRegistrationPage({ token }: { token: string }) {
       phone_secondary: "",
       address: { country: "Brasil" },
       conversion_date: "",
+      baptized: undefined,
       baptism_date: "",
       categories: [],
       children: [],
@@ -5234,6 +5171,7 @@ function PublicChurchRegistrationPage({ token }: { token: string }) {
         phone_secondary: isVisitor ? undefined : form.phone_secondary,
         address: isVisitor ? {} : form.address,
         conversion_date: isVisitor ? undefined : form.conversion_date,
+        baptized: isVisitor ? undefined : form.baptized,
         baptism_date: isVisitor ? undefined : form.baptism_date,
         children: preparedChildren.map((child) => ({
           full_name: child.full_name,
@@ -5331,12 +5269,6 @@ function PublicChurchRegistrationPage({ token }: { token: string }) {
               {registrationCategory && (
                 <FormSection title="Dados pessoais">
                   <div className="form-grid public-form-grid">
-                    <Field
-                      label="Nome completo"
-                      required
-                      value={form.full_name}
-                      onChange={(full_name) => setForm({ ...form, full_name })}
-                    />
                     {!isVisitor && (
                       <Field
                         label="CPF"
@@ -5350,6 +5282,12 @@ function PublicChurchRegistrationPage({ token }: { token: string }) {
                         }
                       />
                     )}
+                    <Field
+                      label="Nome completo"
+                      required
+                      value={form.full_name}
+                      onChange={(full_name) => setForm({ ...form, full_name })}
+                    />
                     {!isVisitor && (
                       <>
                         <Field
@@ -5485,22 +5423,6 @@ function PublicChurchRegistrationPage({ token }: { token: string }) {
                           </div>
                           <div className="form-grid public-form-grid">
                             <Field
-                              label={`Nome completo do filho ${index + 1}`}
-                              required
-                              value={child.full_name}
-                              onChange={(full_name) =>
-                                setForm({
-                                  ...form,
-                                  children: form.children.map(
-                                    (current, itemIndex) =>
-                                      itemIndex === index
-                                        ? { ...current, full_name }
-                                        : current,
-                                  ),
-                                })
-                              }
-                            />
-                            <Field
                               label={`CPF do filho ${index + 1}`}
                               required
                               inputMode="numeric"
@@ -5515,6 +5437,22 @@ function PublicChurchRegistrationPage({ token }: { token: string }) {
                                             ...current,
                                             document_cpf: maskCpf(document_cpf),
                                           }
+                                        : current,
+                                  ),
+                                })
+                              }
+                            />
+                            <Field
+                              label={`Nome completo do filho ${index + 1}`}
+                              required
+                              value={child.full_name}
+                              onChange={(full_name) =>
+                                setForm({
+                                  ...form,
+                                  children: form.children.map(
+                                    (current, itemIndex) =>
+                                      itemIndex === index
+                                        ? { ...current, full_name }
                                         : current,
                                   ),
                                 })
@@ -5708,73 +5646,47 @@ function PublicChurchRegistrationPage({ token }: { token: string }) {
                         setForm({ ...form, conversion_date })
                       }
                     />
-                    <Field
-                      label="Data do batismo"
-                      type="date"
-                      value={form.baptism_date}
-                      onChange={(baptism_date) =>
-                        setForm({ ...form, baptism_date })
+                    <SelectField
+                      label="É batizado(a)?"
+                      required
+                      raw
+                      value={
+                        form.baptized === undefined
+                          ? ""
+                          : form.baptized
+                            ? "yes"
+                            : "no"
+                      }
+                      options={["yes|Sim", "no|Não"]}
+                      onChange={(value) =>
+                        setForm({
+                          ...form,
+                          baptized: value ? value === "yes" : undefined,
+                          baptism_date:
+                            value === "yes" ? form.baptism_date : "",
+                        })
                       }
                     />
-                  </div>
-                </FormSection>
-              )}
-
-              {registrationCategory && (
-                <FormSection title="Privacidade e contato">
-                  <div className="public-consent-options">
-                    <label>
-                      <input
-                        type="checkbox"
+                    {form.baptized && (
+                      <Field
+                        label="Data do batismo"
+                        type="date"
                         required
-                        checked={form.data_processing_consent}
-                        onChange={(event) =>
-                          setForm({
-                            ...form,
-                            data_processing_consent: event.target.checked,
-                          })
+                        value={form.baptism_date}
+                        onChange={(baptism_date) =>
+                          setForm({ ...form, baptism_date })
                         }
                       />
-                      <span>
-                        <strong>
-                          Autorizo o tratamento dos meus dados pessoais.
-                          <b className="required-mark" aria-hidden="true">
-                            {" "}
-                            *
-                          </b>
-                        </strong>
-                        <small>
-                          Necessário para manter minha ficha e realizar o
-                          cuidado e a comunicação da igreja, conforme a LGPD.
-                        </small>
-                      </span>
-                    </label>
-                    <label>
-                      <input
-                        type="checkbox"
-                        checked={form.messaging_consent}
-                        onChange={(event) =>
-                          setForm({
-                            ...form,
-                            messaging_consent: event.target.checked,
-                          })
-                        }
-                      />
-                      <span>
-                        <strong>Aceito receber mensagens da igreja.</strong>
-                        <small>
-                          Este consentimento é opcional e pode ser alterado
-                          depois.
-                        </small>
-                      </span>
-                    </label>
+                    )}
                   </div>
                 </FormSection>
               )}
 
               <p className="public-legal-note">
                 Seus dados serão vinculados somente à {registration.church_name}
-                . O envio não cria acesso administrativo ao sistema.
+                . Os consentimentos serão apresentados na ficha impressa para
+                leitura e assinatura. O envio não cria acesso administrativo ao
+                sistema.
               </p>
               {registrationCategory && (
                 <button className="primary wide" disabled={loading}>
@@ -6508,6 +6420,7 @@ function GroupForm({
   onClose: () => void;
   onSave: (g: TeachingGroup) => void;
 }) {
+  const [peopleQuery, setPeopleQuery] = useState("");
   const [form, setForm] = useState({
     name: initial?.name ?? "",
     track: initial?.track ?? "Consolidação",
@@ -6533,6 +6446,18 @@ function GroupForm({
         : [],
     ) as Record<string, string>,
   });
+  const normalizedPeopleQuery = peopleQuery.trim().toLocaleLowerCase("pt-BR");
+  const peopleResults = normalizedPeopleQuery
+    ? people
+        .filter(
+          (person) =>
+            !form.member_ids.includes(person.id) &&
+            `${person.full_name} ${person.phone_primary ?? ""} ${person.email ?? ""}`
+              .toLocaleLowerCase("pt-BR")
+              .includes(normalizedPeopleQuery),
+        )
+        .slice(0, 8)
+    : [];
   return (
     <ModalShell
       title={initial ? "Gerenciar grupo de ensino" : "Novo grupo de ensino"}
@@ -6629,29 +6554,51 @@ function GroupForm({
             />
           </label>
           <div className="full department-people-picker">
-            <strong>Participantes da turma</strong>
-            <div className="check-grid">
-              {people.map((person) => (
-                <CheckCard
-                  key={person.id}
-                  label={person.full_name}
-                  checked={form.member_ids.includes(person.id)}
-                  onChange={() =>
-                    setForm({
-                      ...form,
-                      member_ids: form.member_ids.includes(person.id)
-                        ? form.member_ids.filter((id) => id !== person.id)
-                        : [...form.member_ids, person.id],
-                      member_roles: {
-                        ...form.member_roles,
-                        [person.id]: form.member_roles[person.id] ?? "Aluno(a)",
-                      },
-                    })
-                  }
-                />
-              ))}
+            <strong>Integrantes da turma</strong>
+            <div className="department-person-search">
+              <Search />
+              <input
+                type="search"
+                aria-label="Pesquisar pessoa para integrar a turma"
+                placeholder="Pesquise a pessoa por nome, telefone ou e-mail..."
+                value={peopleQuery}
+                onChange={(event) => setPeopleQuery(event.target.value)}
+              />
             </div>
+            {normalizedPeopleQuery && (
+              <div className="check-grid department-search-results">
+                {peopleResults.map((person) => (
+                  <CheckCard
+                    key={person.id}
+                    label={person.full_name}
+                    checked={false}
+                    onChange={() => {
+                      setForm({
+                        ...form,
+                        member_ids: [...form.member_ids, person.id],
+                        member_roles: {
+                          ...form.member_roles,
+                          [person.id]:
+                            form.member_roles[person.id] ?? "Aluno(a)",
+                        },
+                      });
+                      setPeopleQuery("");
+                    }}
+                  />
+                ))}
+              </div>
+            )}
+            {normalizedPeopleQuery && peopleResults.length === 0 && (
+              <small className="department-search-empty">
+                Nenhuma pessoa disponível com esses dados.
+              </small>
+            )}
             <div className="department-assignments">
+              {form.member_ids.length > 0 && (
+                <small className="department-selected-count">
+                  {form.member_ids.length} integrante(s) selecionado(s)
+                </small>
+              )}
               {form.member_ids.map((personId) => {
                 const person = people.find((item) => item.id === personId);
                 return (
@@ -6690,6 +6637,21 @@ function GroupForm({
                         <option key={role}>{role}</option>
                       ))}
                     </select>
+                    <button
+                      type="button"
+                      className="icon-only danger"
+                      aria-label={`Remover ${person?.full_name} da turma`}
+                      onClick={() =>
+                        setForm({
+                          ...form,
+                          member_ids: form.member_ids.filter(
+                            (id) => id !== personId,
+                          ),
+                        })
+                      }
+                    >
+                      <X />
+                    </button>
                   </div>
                 );
               })}

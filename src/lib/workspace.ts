@@ -278,6 +278,7 @@ export type SelfRegistrationInput = {
   phone_secondary?: string;
   address: Person["address"];
   conversion_date?: string;
+  baptized?: boolean;
   baptism_date?: string;
   categories: string[];
   children: FamilyChildInput[];
@@ -2024,7 +2025,7 @@ export async function submitPublicChurchRegistration(
       address: input.address,
       conversion_date: input.conversion_date || undefined,
       baptism_date: input.baptism_date || undefined,
-      baptized: input.baptism_date ? true : undefined,
+      baptized: input.baptized,
       categories: [...new Set(["Pré-cadastro", ...input.categories])],
       ministry_roles: [],
       group_ids: [],

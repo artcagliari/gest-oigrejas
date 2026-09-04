@@ -67,6 +67,7 @@ test("cadastra e abre uma ficha aprofundada", async ({ page }) => {
   await page.getByRole("button", { name: "Entrar no sistema" }).click();
   await page.getByRole("button", { name: "Pessoas", exact: true }).click();
   await page.getByRole("button", { name: "Nova pessoa" }).click();
+  await page.getByRole("checkbox", { name: "Membro", exact: true }).check();
   await page.getByLabel("Nome completo").fill("Pessoa de Teste");
   await page.getByLabel("Data de nascimento").fill("10/05/1990");
   await page.getByLabel("Sexo").selectOption("Homem");
@@ -95,14 +96,10 @@ test("cadastra e abre uma ficha aprofundada", async ({ page }) => {
   await page.getByLabel("Complemento").fill("Casa");
   await page.getByLabel("Cidade").fill("São Paulo");
   await page.getByRole("textbox", { name: /^Estado/ }).fill("SP");
-  await page.getByRole("button", { name: /Continuar/ }).click();
   await page.getByLabel("Data de conversão").fill("2020-01-10");
+  await page.getByLabel("É batizado(a)?").selectOption("yes");
   await page.getByLabel("Data do batismo").fill("2021-02-14");
-  await page.locator("label.check-card").filter({ hasText: "Membro" }).click();
-  await page.getByRole("button", { name: /Continuar/ }).click();
-  await expect(page.getByText("Privacidade por padrão")).toBeVisible();
-  await page.locator(".consent-form input").first().check();
-  await page.locator(".consent-form input").nth(1).check();
+  await expect(page.getByText("Privacidade por padrão")).toHaveCount(0);
   await page.getByRole("button", { name: /Salvar pessoa/ }).click();
   await expect(page.getByText("Pessoa cadastrada.")).toBeVisible();
   const internalFamily = await page.evaluate(() => {
@@ -154,6 +151,9 @@ test("cadastra e abre uma ficha aprofundada", async ({ page }) => {
   });
   await consolidation.getByRole("button", { name: /Gerenciar turma/ }).click();
   await page
+    .getByLabel("Pesquisar pessoa para integrar a turma")
+    .fill("Pessoa de Teste");
+  await page
     .locator("label.check-card")
     .filter({ hasText: "Pessoa de Teste" })
     .click();
@@ -161,6 +161,15 @@ test("cadastra e abre uma ficha aprofundada", async ({ page }) => {
   await page.getByRole("button", { name: "Pessoas", exact: true }).click();
   await page.getByText("Pessoa de Teste", { exact: true }).click();
   await expect(page.getByText("FICHA DA PESSOA")).toBeVisible();
+  const printPagePromise = page.waitForEvent("popup");
+  await page
+    .getByRole("button", { name: "Imprimir ficha para assinatura" })
+    .click();
+  const printPage = await printPagePromise;
+  await expect(
+    printPage.getByText("Consentimento para dados da vida eclesiástica"),
+  ).toBeVisible();
+  await expect(printPage.getByText(/AUTORIZO/).first()).toBeVisible();
   await page
     .getByRole("button", { name: "Informações e vida na igreja" })
     .click();
@@ -179,7 +188,7 @@ test("cadastra e abre uma ficha aprofundada", async ({ page }) => {
   await expect(teachingHistoryCard.getByText(/Entrou no grupo/)).toBeVisible();
 });
 
-test("cadastra visitante somente com nome, telefone e consentimentos", async ({
+test("cadastra visitante sem solicitar consentimentos no formulário", async ({
   page,
 }) => {
   await page.getByRole("button", { name: "Entrar no sistema" }).click();
@@ -198,8 +207,7 @@ test("cadastra visitante somente com nome, telefone e consentimentos", async ({
 
   await form.getByLabel("Nome completo").fill("Visitante Interno");
   await form.getByLabel("Telefone WhatsApp").fill("11966665555");
-  await form.getByRole("button", { name: /Continuar/ }).click();
-  await form.locator(".consent-form input").first().check();
+  await expect(form.locator(".consent-form input")).toHaveCount(0);
   await form.getByRole("button", { name: /Salvar pessoa/ }).click();
   await expect(page.getByText("Pessoa cadastrada.")).toBeVisible();
 
@@ -217,7 +225,7 @@ test("cadastra visitante somente com nome, telefone e consentimentos", async ({
   expect(visitor.document_cpf).toBeUndefined();
   expect(visitor.email).toBeUndefined();
   expect(visitor.birth_date).toBeUndefined();
-  expect(visitor.consent.data_processing).toBe(true);
+  expect(visitor.consent.data_processing).toBe(false);
 });
 
 test("abre cadastros de ensino, agenda e financeiro", async ({ page }) => {
@@ -292,6 +300,9 @@ test("Gestor Geral define líder e participantes do grupo de ensino", async ({
   await expect(
     page.getByRole("heading", { name: "Gerenciar grupo de ensino" }),
   ).toBeVisible();
+  await page
+    .getByLabel("Pesquisar pessoa para integrar a turma")
+    .fill("Clara Souza");
   await page
     .locator("label.check-card")
     .filter({ hasText: "Clara Souza" })
@@ -547,11 +558,12 @@ test("membro faz pré-cadastro pelo link e já fica vinculado à igreja", async 
   await expect(page.getByLabel("Complemento")).toHaveValue("");
   await page.getByLabel("Número").fill("25");
   await page.getByLabel("Complemento").fill("Casa 2");
-  await page
-    .getByRole("checkbox", {
+  await page.getByLabel("É batizado(a)?").selectOption("no");
+  await expect(
+    page.getByRole("checkbox", {
       name: /Autorizo o tratamento dos meus dados pessoais/,
-    })
-    .check();
+    }),
+  ).toHaveCount(0);
   await page.getByRole("button", { name: "Enviar meu cadastro" }).click();
   await expect(
     page.getByRole("heading", { name: "Seja bem-vindo(a)!" }),
@@ -590,7 +602,8 @@ test("membro faz pré-cadastro pelo link e já fica vinculado à igreja", async 
     "Gabriel Cadastro",
     "Helena Cadastro",
   ]);
-  expect(savedPerson.consent.data_processing).toBe(true);
+  expect(savedPerson.baptized).toBe(false);
+  expect(savedPerson.consent.data_processing).toBe(false);
   expect(savedFamily.children).toHaveLength(2);
   expect(savedFamily.children[0].categories).toContain("Criança");
   expect(
@@ -632,14 +645,11 @@ test("visitante faz cadastro simplificado pelo link", async ({ page }) => {
 
   await page.getByLabel("Nome completo").fill("Visitante Cadastro");
   await page.getByLabel("Telefone WhatsApp").fill("11977776666");
-  await page
-    .getByRole("checkbox", {
+  await expect(
+    page.getByRole("checkbox", {
       name: /Autorizo o tratamento dos meus dados pessoais/,
-    })
-    .check();
-  await page
-    .getByRole("checkbox", { name: /Aceito receber mensagens da igreja/ })
-    .check();
+    }),
+  ).toHaveCount(0);
   await page.getByRole("button", { name: "Enviar meu cadastro" }).click();
   await expect(
     page.getByRole("heading", { name: "Seja bem-vindo(a)!" }),
@@ -660,6 +670,6 @@ test("visitante faz cadastro simplificado pelo link", async ({ page }) => {
   expect(visitor.email).toBeUndefined();
   expect(visitor.birth_date).toBeUndefined();
   expect(visitor.consent).toEqual(
-    expect.objectContaining({ messaging: true, data_processing: true }),
+    expect.objectContaining({ messaging: false, data_processing: false }),
   );
 });
