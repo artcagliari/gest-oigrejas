@@ -68,6 +68,10 @@ test("cadastra e abre uma ficha aprofundada", async ({ page }) => {
   await page.getByRole("button", { name: "Pessoas", exact: true }).click();
   await page.getByRole("button", { name: "Nova pessoa" }).click();
   await page.getByRole("checkbox", { name: "Membro", exact: true }).check();
+  await expect(page.getByLabel("Escolaridade")).not.toHaveAttribute(
+    "required",
+    "",
+  );
   await page.getByLabel("Nome completo").fill("Pessoa de Teste");
   await page.getByLabel("Data de nascimento").fill("10/05/1990");
   await page.getByLabel("Sexo").selectOption("Homem");
@@ -96,7 +100,6 @@ test("cadastra e abre uma ficha aprofundada", async ({ page }) => {
   await page.getByLabel("Complemento").fill("Casa");
   await page.getByLabel("Cidade").fill("São Paulo");
   await page.getByRole("textbox", { name: /^Estado/ }).fill("SP");
-  await page.getByLabel("Data de conversão").fill("2020-01-10");
   await page.getByLabel("É batizado(a)?").selectOption("yes");
   await page.getByLabel("Data do batismo").fill("2021-02-14");
   await expect(page.getByText("Privacidade por padrão")).toHaveCount(0);
@@ -175,7 +178,15 @@ test("cadastra e abre uma ficha aprofundada", async ({ page }) => {
     .click();
   await expect(
     page.getByText("Consolidação Essencial", { exact: true }),
-  ).toHaveCount(2);
+  ).toHaveCount(3);
+  const updatedPrintPagePromise = page.waitForEvent("popup");
+  await page
+    .getByRole("button", { name: "Imprimir ficha para assinatura" })
+    .click();
+  const updatedPrintPage = await updatedPrintPagePromise;
+  await expect(
+    updatedPrintPage.getByText(/Consolidação Essencial/),
+  ).toBeVisible();
   const teachingGroupsCard = page.locator(".info-card").filter({
     has: page.getByRole("heading", { name: "Grupos de ensino", exact: true }),
   });
@@ -531,6 +542,10 @@ test("membro faz pré-cadastro pelo link e já fica vinculado à igreja", async 
   ).toBeVisible();
   await expect(page.getByText("Igreja da Promessa").first()).toBeVisible();
   await page.getByRole("checkbox", { name: "Membro", exact: true }).check();
+  await expect(page.getByLabel("Escolaridade")).not.toHaveAttribute(
+    "required",
+    "",
+  );
   await page.getByLabel("Nome completo").fill("Rafael do Cadastro");
   await page.getByLabel("Data de nascimento").fill("12/03/1994");
   await page.getByLabel("Sexo").selectOption("Homem");

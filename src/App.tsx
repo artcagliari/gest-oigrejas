@@ -1783,12 +1783,6 @@ function PersonDetail({
           icon={BookOpen}
           rows={[
             [
-              "Data de conversão",
-              person.conversion_date
-                ? formatDate(person.conversion_date)
-                : undefined,
-            ],
-            [
               "É batizado(a)?",
               person.baptized === undefined
                 ? undefined
@@ -1799,6 +1793,12 @@ function PersonDetail({
             [
               "Data do batismo",
               person.baptism_date ? formatDate(person.baptism_date) : undefined,
+            ],
+            [
+              "Cursos realizados",
+              personGroups.length
+                ? personGroups.map((group) => group.name).join(", ")
+                : "Nenhum",
             ],
             ["Categorias", person.categories.join(", ")],
           ]}
@@ -1938,9 +1938,15 @@ function printPersonRegistrationForm(person: Person, data: WorkspaceData) {
       : person.baptized
         ? "Sim"
         : "Não";
+  const completedCourses = data.groups
+    .filter((group) => person.group_ids.includes(group.id))
+    .map((group) => group.name);
+  const completedCoursesText = completedCourses.length
+    ? completedCourses.join(", ")
+    : "Nenhum";
   popup.document
     .write(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Ficha de cadastro — ${safe(person.full_name)}</title><style>
-    @page{size:A4;margin:12mm}*{box-sizing:border-box}body{font:11px Arial,sans-serif;color:#172b27;margin:0;line-height:1.35}header{border-bottom:3px solid #177356;padding-bottom:9px;margin-bottom:11px}h1{font-size:19px;margin:0 0 2px}h2{font-size:12px;margin:12px 0 6px;padding:5px 7px;background:#edf4f1;text-transform:uppercase}.muted{color:#5d6f69}.grid{display:grid;grid-template-columns:1fr 1fr;gap:5px 18px}.field{border-bottom:1px solid #ccd8d4;padding:3px 1px;min-height:24px}.field b{display:block;font-size:8px;text-transform:uppercase;color:#5d6f69}.choice{margin:5px 0}.legal{font-size:9.5px;text-align:justify}.notice{font-size:9px;font-style:italic;color:#445752}.page-break{break-before:page}.signature-grid{display:grid;grid-template-columns:1fr 1fr;gap:28px;margin-top:35px}.signature{border-top:1px solid #172b27;padding-top:4px}.admin{margin-top:18px;border:1px solid #ccd8d4;padding:9px}.footer{margin-top:12px;padding-top:6px;border-top:1px solid #ccd8d4;font-size:8px;color:#5d6f69}button{margin-top:14px;padding:9px 16px}@media print{button{display:none}}
+    @page{size:A4;margin:11mm}*{box-sizing:border-box}body{font:10.5px Arial,sans-serif;color:#172b27;margin:0;line-height:1.3}header{border-bottom:3px solid #177356;padding-bottom:8px;margin-bottom:9px}h1{font-size:18px;margin:0 0 2px}h2{font-size:11px;margin:10px 0 5px;padding:5px 7px;background:#edf4f1;text-transform:uppercase;break-after:avoid}.muted{color:#5d6f69}.grid{display:grid;grid-template-columns:1fr 1fr;gap:4px 18px}.field{border-bottom:1px solid #ccd8d4;padding:3px 1px;min-height:23px}.field b{display:block;font-size:8px;text-transform:uppercase;color:#5d6f69}.choice{break-inside:avoid;margin:5px 0;padding:6px 8px;border:1px solid #ccd8d4;border-radius:5px}.legal{font-size:9px;text-align:justify;margin:5px 0}.notice{font-size:8.5px;font-style:italic;color:#445752;margin:5px 0}.terms{margin-top:4px}.signature-panel{break-inside:avoid;margin-top:10px;padding:10px;border:1.5px solid #177356;border-radius:7px}.signature-panel h2{margin-top:0}.signature-grid{display:grid;grid-template-columns:1fr 150px;gap:25px 20px;margin-top:26px}.signature{border-top:1px solid #172b27;padding-top:4px;min-height:22px}.signature.wide{grid-column:1/-1;margin-top:22px;min-height:28px}.admin{break-inside:avoid;margin-top:10px;border:1px solid #ccd8d4;padding:8px}.footer{margin-top:8px;padding-top:5px;border-top:1px solid #ccd8d4;font-size:8px;color:#5d6f69}button{margin-top:14px;padding:9px 16px}@media print{button{display:none}}
   </style></head><body><header><h1>${safe(church?.name || "Igreja")} — Ficha de cadastro</h1><div class="muted">Dados da pessoa e termos para leitura, manifestação e assinatura</div></header>
   <h2>I — Dados pessoais</h2><div class="grid">
     <div class="field"><b>Nome completo</b>${safe(person.full_name)}</div><div class="field"><b>CPF</b>${safe(person.document_cpf)}</div>
@@ -1951,10 +1957,10 @@ function printPersonRegistrationForm(person: Person, data: WorkspaceData) {
     <div class="field"><b>Telefone / WhatsApp</b>${safe(person.phone_primary)}</div><div class="field"><b>Telefone alternativo</b>${safe(person.phone_secondary)}</div>
     <div class="field"><b>E-mail</b>${safe(person.email)}</div><div class="field"><b>Endereço</b>${safe(address)}</div>
   </div><h2>III — Vida eclesiástica</h2><div class="grid">
-    <div class="field"><b>Vínculo</b>${safe(person.categories.join(", "))}</div><div class="field"><b>Data de conversão</b>${safe(person.conversion_date ? formatDate(person.conversion_date) : undefined)}</div>
+    <div class="field"><b>Vínculo</b>${safe(person.categories.join(", "))}</div><div class="field"><b>Cursos realizados</b>${safe(completedCoursesText)}</div>
     <div class="field"><b>É batizado(a)?</b>${safe(baptized)}</div><div class="field"><b>Data do batismo</b>${safe(person.baptism_date ? formatDate(person.baptism_date) : person.baptized ? undefined : "Não se aplica")}</div>
   </div><h2>IV — Informações complementares</h2><div class="field">${safe(person.notes)}</div>
-  <div class="page-break"><h2>V — Comunicação com a igreja</h2>
+  <div class="terms"><h2>V — Comunicação com a igreja</h2>
     <div class="choice">Autoriza contato por telefone/WhatsApp para cultos, reuniões, eventos, atividades e acompanhamento da igreja? &nbsp; ☐ Sim &nbsp; ☐ Não</div>
     <div class="choice">Autoriza o recebimento de comunicações por e-mail? &nbsp; ☐ Sim &nbsp; ☐ Não</div>
     <div class="choice">Autoriza a inclusão do seu número em grupos oficiais de WhatsApp relacionados às atividades da igreja? &nbsp; ☐ Sim &nbsp; ☐ Não</div>
@@ -1962,8 +1968,8 @@ function printPersonRegistrationForm(person: Person, data: WorkspaceData) {
     <h2>VI — Autorização de uso de imagem e voz</h2><p class="legal">Autoriza ${safe(church?.name || "a igreja")} a captar e utilizar sua imagem e/ou voz em fotografias, vídeos e gravações realizados em cultos, reuniões, eventos e demais atividades da igreja? &nbsp; ☐ Sim &nbsp; ☐ Não</p><p class="legal">Em caso de autorização, a imagem e/ou voz poderão ser utilizadas gratuitamente para fins institucionais, religiosos, informativos e de divulgação das atividades da igreja, inclusive em redes sociais, site, transmissões e materiais impressos oficiais. A autorização não permite uso ofensivo, descontextualizado ou para finalidade comercial alheia às atividades da igreja e poderá ser revogada para utilizações futuras mediante solicitação do titular, observadas as limitações legais e técnicas.</p>
     <h2>VII — Proteção de dados pessoais — LGPD</h2><p class="legal">${safe(church?.name || "A igreja")}, na qualidade de controladora, informa que os dados fornecidos nesta ficha serão tratados para cadastro, organização administrativa, comunicação, acompanhamento e desenvolvimento das atividades eclesiásticas, pastorais e ministeriais. Informações relacionadas à convicção, vínculo e participação religiosa podem constituir dados pessoais sensíveis nos termos da Lei nº 13.709/2018 (LGPD).</p><p class="legal">Os dados serão usados para finalidades legítimas e específicas, com acesso limitado a pessoas autorizadas e medidas adequadas de segurança. Não serão comercializados nem usados para finalidade incompatível com a informada. O titular poderá solicitar informações, acesso, correção e exercer os demais direitos previstos na LGPD pelos canais oficiais da igreja.</p>
     <h2>VIII — Consentimento para dados da vida eclesiástica</h2><p class="legal">Autorizo, de forma livre, informada, específica e destacada, o tratamento das informações de natureza religiosa e eclesiástica fornecidas nesta ficha para fins de cadastro, acompanhamento e organização das atividades da igreja.</p><div class="choice" style="text-align:center;font-weight:bold">☐ AUTORIZO &nbsp;&nbsp;&nbsp;&nbsp; ☐ NÃO AUTORIZO</div>
-    <h2>IX — Declaração final</h2><p class="legal">Declaro que as informações fornecidas nesta ficha são verdadeiras e que tive acesso às informações sobre as finalidades do cadastro, as formas de comunicação, a utilização de imagem e voz e o tratamento dos dados pessoais.</p>
-    <div class="signature-grid"><div class="signature">Nome do participante: ${safe(person.full_name)}</div><div class="signature">Data: ____/____/________</div><div class="signature">Assinatura do participante ou responsável</div><div class="signature">Responsável pelo cadastro</div></div>
+    <div class="signature-panel"><h2>IX — Declaração final e assinatura</h2><p class="legal">Declaro que as informações fornecidas nesta ficha são verdadeiras e que tive acesso às informações sobre as finalidades do cadastro, as formas de comunicação, a utilização de imagem e voz e o tratamento dos dados pessoais.</p>
+    <div class="signature-grid"><div class="signature">Nome: ${safe(person.full_name)}</div><div class="signature">Data: ____/____/________</div><div class="signature wide">Assinatura do participante ou responsável</div></div></div>
     <div class="admin"><b>Uso interno da igreja</b><br><br>Data de recebimento: ____/____/________ &nbsp;&nbsp; Observações administrativas: ________________________________________________</div>
   </div><div class="footer">Ficha ${safe(person.id)} • Documento gerado em ${safe(new Date().toLocaleString("pt-BR"))}${church?.document ? ` • Documento da igreja: ${safe(church.document)}` : ""}</div><button onclick="window.print()">Imprimir / salvar em PDF</button></body></html>`);
   popup.document.close();
@@ -2102,7 +2108,6 @@ function PersonForm({
               email: isVisitor ? undefined : form.email,
               phone_secondary: isVisitor ? undefined : form.phone_secondary,
               address: isVisitor ? {} : form.address,
-              conversion_date: isVisitor ? undefined : form.conversion_date,
               baptism_date: isVisitor ? undefined : form.baptism_date,
               baptized: isVisitor ? undefined : form.baptized,
               children_names: preparedChildren.map((child) => child.full_name),
@@ -2171,7 +2176,6 @@ function PersonForm({
                   {!isVisitor && (
                     <SelectField
                       label="Escolaridade"
-                      required
                       value={form.education}
                       options={[
                         "Ensino Fundamental",
@@ -2501,12 +2505,6 @@ function PersonForm({
               {!isVisitor && (
                 <FormSection title="Jornada espiritual">
                   <div className="form-grid">
-                    <Field
-                      label="Data de conversão"
-                      type="date"
-                      value={form.conversion_date}
-                      onChange={(v) => set("conversion_date", v)}
-                    />
                     <SelectField
                       label="É batizado(a)?"
                       required
@@ -5076,7 +5074,6 @@ function PublicChurchRegistrationPage({ token }: { token: string }) {
       phone_primary: "",
       phone_secondary: "",
       address: { country: "Brasil" },
-      conversion_date: "",
       baptized: undefined,
       baptism_date: "",
       categories: [],
@@ -5170,7 +5167,6 @@ function PublicChurchRegistrationPage({ token }: { token: string }) {
         email: isVisitor ? undefined : form.email,
         phone_secondary: isVisitor ? undefined : form.phone_secondary,
         address: isVisitor ? {} : form.address,
-        conversion_date: isVisitor ? undefined : form.conversion_date,
         baptized: isVisitor ? undefined : form.baptized,
         baptism_date: isVisitor ? undefined : form.baptism_date,
         children: preparedChildren.map((child) => ({
@@ -5312,7 +5308,6 @@ function PublicChurchRegistrationPage({ token }: { token: string }) {
                         />
                         <SelectField
                           label="Escolaridade"
-                          required
                           value={form.education}
                           options={[
                             "Ensino Fundamental",
@@ -5638,14 +5633,6 @@ function PublicChurchRegistrationPage({ token }: { token: string }) {
               {registrationCategory && !isVisitor && (
                 <FormSection title="Vida cristã">
                   <div className="form-grid public-form-grid">
-                    <Field
-                      label="Data de conversão"
-                      type="date"
-                      value={form.conversion_date}
-                      onChange={(conversion_date) =>
-                        setForm({ ...form, conversion_date })
-                      }
-                    />
                     <SelectField
                       label="É batizado(a)?"
                       required

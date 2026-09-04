@@ -277,7 +277,6 @@ export type SelfRegistrationInput = {
   phone_primary?: string;
   phone_secondary?: string;
   address: Person["address"];
-  conversion_date?: string;
   baptized?: boolean;
   baptism_date?: string;
   categories: string[];
@@ -2023,7 +2022,6 @@ export async function submitPublicChurchRegistration(
       phone_primary: input.phone_primary?.trim() || undefined,
       phone_secondary: input.phone_secondary?.trim() || undefined,
       address: input.address,
-      conversion_date: input.conversion_date || undefined,
       baptism_date: input.baptism_date || undefined,
       baptized: input.baptized,
       categories: [...new Set(["Pré-cadastro", ...input.categories])],
@@ -2142,7 +2140,12 @@ export async function submitPublicChurchRegistration(
   }
   const { error } = await supabase.rpc("submit_church_self_registration", {
     registration_token: token,
-    registration_data: input,
+    // A função legada do banco ainda espera um texto; "Não informado" mantém
+    // o campo opcional para a pessoa sem alterar os cadastros existentes.
+    registration_data: {
+      ...input,
+      education: input.education || "Não informado",
+    },
   });
   if (error) throw error;
 }
