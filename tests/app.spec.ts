@@ -688,3 +688,24 @@ test("visitante faz cadastro simplificado pelo link", async ({ page }) => {
     expect.objectContaining({ messaging: false, data_processing: false }),
   );
 });
+
+test("cadastro de pessoa aceita todos os campos vazios", async ({ page }) => {
+  await page.getByRole("button", { name: "Entrar no sistema" }).click();
+  await page.getByRole("button", { name: "Pessoas", exact: true }).click();
+  await page.getByRole("button", { name: "Nova pessoa" }).click();
+
+  const internalForm = page.locator(".modal-layer form");
+  await expect(internalForm).toHaveAttribute("novalidate", "");
+  await expect(internalForm.locator(".required-mark:visible")).toHaveCount(0);
+  await internalForm.getByRole("button", { name: "Salvar pessoa" }).click();
+  await expect(page.getByText("Pessoa cadastrada.")).toBeVisible();
+
+  await page.goto("/?cadastro=22222222-2222-4222-8222-222222222222");
+  const publicForm = page.locator(".public-registration-card form");
+  await expect(publicForm).toHaveAttribute("novalidate", "");
+  await expect(publicForm.locator(".required-mark:visible")).toHaveCount(0);
+  await publicForm.getByRole("button", { name: "Enviar meu cadastro" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Seja bem-vindo(a)!" }),
+  ).toBeVisible();
+});

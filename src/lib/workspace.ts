@@ -1166,7 +1166,7 @@ export async function savePersonFamily(
         item.document_cpf?.replace(/\D/g, "") === normalizedChildCpf,
     );
     const childId = child.id ?? personWithSameCpf?.id ?? newId();
-    const childAge = ageFromIsoDate(child.birth_date);
+    const childAge = child.birth_date ? ageFromIsoDate(child.birth_date) : 0;
     const childCategories = parent.categories.includes("Visitante")
       ? ["Visitante"]
       : childAge < 18
@@ -2010,7 +2010,7 @@ export async function submitPublicChurchRegistration(
     data.people.push({
       id: parentId,
       church_id: "demo-church",
-      full_name: input.full_name.trim(),
+      full_name: input.full_name.trim() || "Sem nome informado",
       birth_date: input.birth_date || undefined,
       gender: input.gender || undefined,
       education: input.education || undefined,
@@ -2043,7 +2043,7 @@ export async function submitPublicChurchRegistration(
             child.document_cpf.replace(/\D/g, ""),
       );
       const childId = existingChild?.id ?? newId();
-      const childAge = ageFromIsoDate(child.birth_date);
+      const childAge = child.birth_date ? ageFromIsoDate(child.birth_date) : 0;
       const childCategories = input.categories.includes("Visitante")
         ? ["Visitante"]
         : childAge < 18
@@ -2059,7 +2059,7 @@ export async function submitPublicChurchRegistration(
         ...(existingChild ?? {}),
         id: childId,
         church_id: "demo-church",
-        full_name: child.full_name.trim(),
+        full_name: child.full_name.trim() || "Sem nome informado",
         birth_date: child.birth_date,
         gender: child.gender,
         document_cpf: child.document_cpf.trim(),
@@ -2140,12 +2140,7 @@ export async function submitPublicChurchRegistration(
   }
   const { error } = await supabase.rpc("submit_church_self_registration", {
     registration_token: token,
-    // A função legada do banco ainda espera um texto; "Não informado" mantém
-    // o campo opcional para a pessoa sem alterar os cadastros existentes.
-    registration_data: {
-      ...input,
-      education: input.education || "Não informado",
-    },
+    registration_data: input,
   });
   if (error) throw error;
 }

@@ -2031,16 +2031,11 @@ function PersonForm({
             gender: "",
             document_cpf: "",
           })),
-    ),
-    [, setFormError] = useState("");
+    );
   const personCategory = form.categories.find((category) =>
     ["Visitante", "Membro", "Criança"].includes(category),
   );
   const isVisitor = personCategory === "Visitante";
-  function showFormError(message: string) {
-    setFormError(message);
-    notify(message, "error");
-  }
   const set = <K extends keyof Person>(key: K, value: Person[K]) =>
       setForm((prev) => ({ ...prev, [key]: value })),
     address = (key: keyof Person["address"], value: string) =>
@@ -2056,49 +2051,32 @@ function PersonForm({
       large
     >
       <form
+        noValidate
+        className="optional-fields"
         onSubmit={(e) => {
           e.preventDefault();
-          if (!personCategory) {
-            showFormError("Escolha Visitante, Membro ou Criança.");
-            return;
-          }
-          if (
-            form.full_name.trim().length < 3 ||
-            (form.phone_primary?.replace(/\D/g, "").length ?? 0) < 10
-          ) {
-            showFormError("Informe o nome completo e um telefone válido.");
-            return;
-          }
           const birthDate = isVisitor
             ? undefined
             : brazilianDateToIso(form.birth_date);
-          if (!isVisitor && !birthDate) {
-            showFormError("Informe uma data de nascimento válida.");
-            return;
-          }
-          const childrenError =
-            !isVisitor && hasChildren ? familyChildrenError(children) : "";
-          if (childrenError) {
-            showFormError(childrenError);
-            return;
-          }
-          if (!isVisitor && form.baptized === undefined) {
-            showFormError("Informe se a pessoa é batizada.");
-            return;
-          }
-          if (!isVisitor && form.baptized && !form.baptism_date) {
-            showFormError("Informe a data do batismo.");
-            return;
-          }
-          const preparedChildren = (isVisitor ? [] : children).map((child) => ({
-            ...child,
-            full_name: child.full_name.trim(),
-            birth_date: brazilianDateToIso(child.birth_date) ?? "",
-            document_cpf: child.document_cpf.replace(/\D/g, ""),
-          }));
+          const preparedChildren = (isVisitor ? [] : children)
+            .filter((child) =>
+              Boolean(
+                child.full_name ||
+                child.birth_date ||
+                child.document_cpf ||
+                child.gender,
+              ),
+            )
+            .map((child) => ({
+              ...child,
+              full_name: child.full_name.trim() || "Sem nome informado",
+              birth_date: brazilianDateToIso(child.birth_date) ?? "",
+              document_cpf: child.document_cpf.replace(/\D/g, ""),
+            }));
           onSave(
             {
               ...form,
+              full_name: form.full_name.trim() || "Sem nome informado",
               birth_date: birthDate ?? undefined,
               gender: isVisitor ? undefined : form.gender,
               education: isVisitor ? undefined : form.education,
@@ -5109,43 +5087,23 @@ function PublicChurchRegistrationPage({ token }: { token: string }) {
     event.preventDefault();
     setError("");
     if (website) return;
-    if (!form.categories.length) {
-      setError("Escolha Visitante, Membro ou Criança.");
-      return;
-    }
-    if ((form.phone_primary?.replace(/\D/g, "").length ?? 0) < 10) {
-      setError("Informe um telefone WhatsApp válido.");
-      return;
-    }
     const birthDate = isVisitor ? "" : brazilianDateToIso(form.birth_date);
-    if (!isVisitor && !birthDate) {
-      setError("Informe uma data de nascimento válida em dd/mm/aaaa.");
-      return;
-    }
-    if (!isVisitor && hasChildren === undefined) {
-      setError("Informe se você possui filhos.");
-      return;
-    }
     const normalizedParentCpf = form.document_cpf?.replace(/\D/g, "") ?? "";
-    if (!isVisitor && normalizedParentCpf.length !== 11) {
-      setError("Informe um CPF válido para o responsável.");
-      return;
-    }
-    const childrenError =
-      !isVisitor && hasChildren
-        ? familyChildrenError(form.children, "criança")
-        : "";
-    if (childrenError) {
-      setError(childrenError);
-      return;
-    }
-    const preparedChildren = (isVisitor ? [] : form.children).map((child) => ({
-      full_name: child.full_name.trim(),
-      birth_date: brazilianDateToIso(child.birth_date) ?? "",
-      document_cpf: child.document_cpf.replace(/\D/g, ""),
-      gender: child.gender,
-      valid_birth_date: personAge(child.birth_date) !== null,
-    }));
+    const preparedChildren = (isVisitor ? [] : form.children)
+      .filter((child) =>
+        Boolean(
+          child.full_name ||
+          child.birth_date ||
+          child.document_cpf ||
+          child.gender,
+        ),
+      )
+      .map((child) => ({
+        full_name: child.full_name.trim() || "Sem nome informado",
+        birth_date: brazilianDateToIso(child.birth_date) ?? "",
+        document_cpf: child.document_cpf.replace(/\D/g, ""),
+        gender: child.gender,
+      }));
     const familyCpfs = [
       normalizedParentCpf,
       ...preparedChildren.map((child) => child.document_cpf),
@@ -5215,7 +5173,7 @@ function PublicChurchRegistrationPage({ token }: { token: string }) {
           </div>
         ) : (
           registration && (
-            <form onSubmit={submit}>
+            <form onSubmit={submit} noValidate className="optional-fields">
               <div className="public-registration-heading">
                 <span className="public-consent-icon">
                   <UserRound />
@@ -5262,104 +5220,102 @@ function PublicChurchRegistrationPage({ token }: { token: string }) {
                 </div>
               </FormSection>
 
-              {registrationCategory && (
-                <FormSection title="Dados pessoais">
-                  <div className="form-grid public-form-grid">
-                    {!isVisitor && (
+              <FormSection title="Dados pessoais">
+                <div className="form-grid public-form-grid">
+                  {!isVisitor && (
+                    <Field
+                      label="CPF"
+                      required
+                      value={form.document_cpf}
+                      onChange={(document_cpf) =>
+                        setForm({
+                          ...form,
+                          document_cpf: maskCpf(document_cpf),
+                        })
+                      }
+                    />
+                  )}
+                  <Field
+                    label="Nome completo"
+                    required
+                    value={form.full_name}
+                    onChange={(full_name) => setForm({ ...form, full_name })}
+                  />
+                  {!isVisitor && (
+                    <>
                       <Field
-                        label="CPF"
+                        label="Data de nascimento"
                         required
-                        value={form.document_cpf}
-                        onChange={(document_cpf) =>
+                        placeholder="dd/mm/aaaa"
+                        inputMode="numeric"
+                        value={form.birth_date}
+                        onChange={(birth_date) =>
                           setForm({
                             ...form,
-                            document_cpf: maskCpf(document_cpf),
+                            birth_date: maskBrazilianDate(birth_date),
                           })
                         }
                       />
-                    )}
-                    <Field
-                      label="Nome completo"
-                      required
-                      value={form.full_name}
-                      onChange={(full_name) => setForm({ ...form, full_name })}
-                    />
-                    {!isVisitor && (
-                      <>
+                      <SelectField
+                        label="Sexo"
+                        required
+                        value={form.gender}
+                        options={["Homem", "Mulher", "Prefiro não informar"]}
+                        onChange={(gender) => setForm({ ...form, gender })}
+                      />
+                      <SelectField
+                        label="Escolaridade"
+                        value={form.education}
+                        options={[
+                          "Ensino Fundamental",
+                          "Ensino Médio",
+                          "Ensino Superior",
+                          "Pós-graduação",
+                        ]}
+                        onChange={(education) =>
+                          setForm({ ...form, education })
+                        }
+                      />
+                      <SelectField
+                        label="Estado civil"
+                        required
+                        value={form.marital_status}
+                        options={[
+                          "Solteiro(a)",
+                          "Casado(a)",
+                          "Divorciado(a)",
+                          "Viúvo(a)",
+                          "União estável",
+                        ]}
+                        onChange={(marital_status) =>
+                          setForm({
+                            ...form,
+                            marital_status,
+                            spouse_name:
+                              marital_status === "Casado(a)" ||
+                              marital_status === "União estável"
+                                ? form.spouse_name
+                                : "",
+                          })
+                        }
+                      />
+                      {(form.marital_status === "Casado(a)" ||
+                        form.marital_status === "União estável") && (
                         <Field
-                          label="Data de nascimento"
+                          label="Nome completo do cônjuge"
                           required
-                          placeholder="dd/mm/aaaa"
-                          inputMode="numeric"
-                          value={form.birth_date}
-                          onChange={(birth_date) =>
-                            setForm({
-                              ...form,
-                              birth_date: maskBrazilianDate(birth_date),
-                            })
+                          value={form.spouse_name}
+                          onChange={(spouse_name) =>
+                            setForm({ ...form, spouse_name })
                           }
                         />
-                        <SelectField
-                          label="Sexo"
-                          required
-                          value={form.gender}
-                          options={["Homem", "Mulher", "Prefiro não informar"]}
-                          onChange={(gender) => setForm({ ...form, gender })}
-                        />
-                        <SelectField
-                          label="Escolaridade"
-                          value={form.education}
-                          options={[
-                            "Ensino Fundamental",
-                            "Ensino Médio",
-                            "Ensino Superior",
-                            "Pós-graduação",
-                          ]}
-                          onChange={(education) =>
-                            setForm({ ...form, education })
-                          }
-                        />
-                        <SelectField
-                          label="Estado civil"
-                          required
-                          value={form.marital_status}
-                          options={[
-                            "Solteiro(a)",
-                            "Casado(a)",
-                            "Divorciado(a)",
-                            "Viúvo(a)",
-                            "União estável",
-                          ]}
-                          onChange={(marital_status) =>
-                            setForm({
-                              ...form,
-                              marital_status,
-                              spouse_name:
-                                marital_status === "Casado(a)" ||
-                                marital_status === "União estável"
-                                  ? form.spouse_name
-                                  : "",
-                            })
-                          }
-                        />
-                        {(form.marital_status === "Casado(a)" ||
-                          form.marital_status === "União estável") && (
-                          <Field
-                            label="Nome completo do cônjuge"
-                            required
-                            value={form.spouse_name}
-                            onChange={(spouse_name) =>
-                              setForm({ ...form, spouse_name })
-                            }
-                          />
-                        )}
-                      </>
-                    )}
-                  </div>
-                </FormSection>
-              )}
+                      )}
+                    </>
+                  )}
+                </div>
+              </FormSection>
 
-              {registrationCategory && !isVisitor && (
+              {!isVisitor && (
                 <FormSection title="Filhos">
                   <div className="form-grid public-form-grid">
                     <SelectField
@@ -5529,47 +5485,45 @@ function PublicChurchRegistrationPage({ token }: { token: string }) {
                 </FormSection>
               )}
 
-              {registrationCategory && (
-                <FormSection title="Contato">
-                  <div className="form-grid public-form-grid">
+              <FormSection title="Contato">
+                <div className="form-grid public-form-grid">
+                  <Field
+                    label="Telefone WhatsApp"
+                    required
+                    value={form.phone_primary}
+                    onChange={(phone_primary) =>
+                      setForm({
+                        ...form,
+                        phone_primary: maskPhone(phone_primary),
+                      })
+                    }
+                  />
+                  {!isVisitor && (
                     <Field
-                      label="Telefone WhatsApp"
-                      required
-                      value={form.phone_primary}
-                      onChange={(phone_primary) =>
+                      label="Telefone alternativo (opcional)"
+                      value={form.phone_secondary}
+                      onChange={(phone_secondary) =>
                         setForm({
                           ...form,
-                          phone_primary: maskPhone(phone_primary),
+                          phone_secondary: maskPhone(phone_secondary),
                         })
                       }
                     />
-                    {!isVisitor && (
-                      <Field
-                        label="Telefone alternativo (opcional)"
-                        value={form.phone_secondary}
-                        onChange={(phone_secondary) =>
-                          setForm({
-                            ...form,
-                            phone_secondary: maskPhone(phone_secondary),
-                          })
-                        }
-                      />
-                    )}
-                    {!isVisitor && (
-                      <Field
-                        label="E-mail"
-                        type="email"
-                        required
-                        wide
-                        value={form.email}
-                        onChange={(email) => setForm({ ...form, email })}
-                      />
-                    )}
-                  </div>
-                </FormSection>
-              )}
+                  )}
+                  {!isVisitor && (
+                    <Field
+                      label="E-mail"
+                      type="email"
+                      required
+                      wide
+                      value={form.email}
+                      onChange={(email) => setForm({ ...form, email })}
+                    />
+                  )}
+                </div>
+              </FormSection>
 
-              {registrationCategory && !isVisitor && (
+              {!isVisitor && (
                 <FormSection title="Endereço">
                   <div className="form-grid public-form-grid">
                     <CepField
@@ -5630,7 +5584,7 @@ function PublicChurchRegistrationPage({ token }: { token: string }) {
                 </FormSection>
               )}
 
-              {registrationCategory && !isVisitor && (
+              {!isVisitor && (
                 <FormSection title="Vida cristã">
                   <div className="form-grid public-form-grid">
                     <SelectField
@@ -5675,18 +5629,16 @@ function PublicChurchRegistrationPage({ token }: { token: string }) {
                 leitura e assinatura. O envio não cria acesso administrativo ao
                 sistema.
               </p>
-              {registrationCategory && (
-                <button className="primary wide" disabled={loading}>
-                  {loading ? (
-                    <LoaderCircle className="spin" />
-                  ) : (
-                    <>
-                      <Check />
-                      <span>Enviar meu cadastro</span>
-                    </>
-                  )}
-                </button>
-              )}
+              <button className="primary wide" disabled={loading}>
+                {loading ? (
+                  <LoaderCircle className="spin" />
+                ) : (
+                  <>
+                    <Check />
+                    <span>Enviar meu cadastro</span>
+                  </>
+                )}
+              </button>
             </form>
           )
         )}
@@ -7583,27 +7535,6 @@ function personAge(value?: string) {
   )
     age -= 1;
   return age >= 0 ? age : null;
-}
-function familyChildrenError(
-  children: FamilyChildInput[],
-  childLabel = "filho",
-) {
-  if (!children.length)
-    return `Adicione pelo menos um ${childLabel} antes de continuar.`;
-  for (const [index, child] of children.entries()) {
-    const label = `${childLabel.charAt(0).toUpperCase()}${childLabel.slice(1)} ${index + 1}`;
-    if (child.full_name.trim().length < 3)
-      return `${label}: informe o nome completo.`;
-    if (!brazilianDateToIso(child.birth_date))
-      return `${label}: informe a data de nascimento em dd/mm/aaaa.`;
-    if (personAge(child.birth_date) === null)
-      return `${label}: a data de nascimento não pode ser futura.`;
-    if (child.document_cpf.replace(/\D/g, "").length !== 11)
-      return `${label}: informe um CPF com 11 números.`;
-    if (!["Homem", "Mulher", "Prefiro não informar"].includes(child.gender))
-      return `${label}: informe o sexo.`;
-  }
-  return "";
 }
 function dateTime(value: string) {
   return new Date(value).toLocaleString("pt-BR", {

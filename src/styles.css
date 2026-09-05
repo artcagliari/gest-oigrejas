@@ -2669,6 +2669,9 @@ button.danger svg {
   color: #c4463a;
   font-weight: 900;
 }
+.optional-fields .required-mark {
+  display: none;
+}
 .add-child-name {
   justify-self: start;
 }
