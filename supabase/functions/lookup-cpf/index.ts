@@ -22,9 +22,38 @@ function normalizedDate(value: unknown) {
 }
 
 function firstText(source: Record<string, unknown>, keys: string[]) {
+  const normalizedKeys = new Set(keys.map(normalizedKey));
   for (const key of keys) {
     const value = source[key];
     if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  for (const [key, value] of Object.entries(source)) {
+    if (
+      normalizedKeys.has(normalizedKey(key)) &&
+      typeof value === "string" &&
+      value.trim()
+    )
+      return value.trim();
+  }
+  return null;
+}
+
+function normalizedKey(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
+}
+
+function firstRecord(value: unknown): Record<string, unknown> | null {
+  if (value && typeof value === "object" && !Array.isArray(value))
+    return value as Record<string, unknown>;
+  if (Array.isArray(value)) {
+    const record = value.find(
+      (item) => item && typeof item === "object" && !Array.isArray(item),
+    );
+    return (record as Record<string, unknown> | undefined) ?? null;
   }
   return null;
 }
@@ -105,16 +134,24 @@ Deno.serve(async (request) => {
       throw new Error("O serviço de CPF está temporariamente indisponível.");
 
     const result =
-      payload.result && typeof payload.result === "object"
-        ? (payload.result as Record<string, unknown>)
-        : payload;
+      firstRecord(payload.result) ??
+      firstRecord(payload.data) ??
+      firstRecord(payload.retorno) ??
+      payload;
     const success = payload.status;
     if (success === false || success === 0 || payload.return === "error") {
       const message = firstText(payload, ["message", "mensagem", "error"]);
       throw new Error(message ?? "CPF não encontrado.");
     }
 
-    const name = firstText(result, ["nome", "name", "nome_completo"]);
+    const name = firstText(result, [
+      "nome",
+      "name",
+      "nome_completo",
+      "nome_da_pf",
+      "nome_pf",
+      "razao_social",
+    ]);
     const birthDate = normalizedDate(
       firstText(result, [
         "data_de_nascimento",
