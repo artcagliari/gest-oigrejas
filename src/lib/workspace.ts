@@ -265,6 +265,14 @@ export type PublicChurchRegistration = {
   expires_at?: string;
 };
 
+export type CpfLookupResult = {
+  cpf: string;
+  name?: string;
+  birthDate?: string;
+  status?: string;
+  gender?: string;
+};
+
 export type SelfRegistrationInput = {
   full_name: string;
   birth_date?: string;
@@ -1976,6 +1984,29 @@ export async function loadPublicChurchRegistration(
   if (error) throw error;
   const registration = Array.isArray(data) ? data[0] : data;
   return (registration as PublicChurchRegistration | undefined) ?? null;
+}
+
+export async function lookupCpf(
+  cpf: string,
+  registrationToken?: string,
+): Promise<CpfLookupResult> {
+  if (isDemoMode || !supabase)
+    throw new Error("A consulta de CPF está disponível no ambiente conectado.");
+  const { data, error } = await supabase.functions.invoke("lookup-cpf", {
+    body: { cpf, registrationToken },
+  });
+  if (error) {
+    const context = error.context as Response | undefined;
+    const payload = context
+      ? await context
+          .clone()
+          .json()
+          .catch(() => null)
+      : null;
+    throw new Error(payload?.error ?? error.message);
+  }
+  if (data?.error) throw new Error(data.error);
+  return data as CpfLookupResult;
 }
 
 export async function submitPublicChurchRegistration(

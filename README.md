@@ -8,11 +8,12 @@ Sistema multi-igreja com Administrador da Plataforma isolado e Gestores Gerais p
 - Administrador da Plataforma restrito ao painel e à criação de igrejas;
 - criação da igreja junto com o convite do Gestor Geral;
 - equipe com cargos `super`, pessoas, ensino, financeiro, agenda e consulta;
-- pessoas com dados pessoais, endereço, categorias, funções, grupos, jornada espiritual, anotações e consentimentos LGPD;
-- link público de pré-cadastro por igreja, com validade, vínculo automático, prevenção de duplicidade e consentimento LGPD;
-- cadastro obrigatório com nascimento em `dd/mm/aaaa`, sexo, vínculo, endereço, vida cristã e nomes de múltiplos filhos; somente o telefone alternativo é opcional;
+- pessoas com dados pessoais, endereço, categorias, funções, grupos, jornada espiritual e anotações;
+- link público de pré-cadastro por igreja, com validade, vínculo automático e prevenção de duplicidade;
+- campos opcionais no cadastro interno e público, com consentimentos apresentados na ficha impressa para assinatura;
+- consulta de CPF pelo Hub do Desenvolvedor, preenchendo nome e nascimento sem expor a chave no frontend;
 - consulta de CEP pelo ViaCEP, com preenchimento de rua, bairro, cidade e estado sem alterar número ou complemento;
-- jornada com conversão e batismo opcionais, categoria Adolescente e histórico permanente de entrada e saída dos grupos;
+- jornada com batismo, categoria Adolescente e histórico permanente de entrada e saída dos grupos;
 - grupos de consolidação/ensino, liderança, capacidade, aulas e chamada individual;
 - departamentos com modelos, descrição e cargos próprios;
 - agenda mensal/lista, tipos de evento e criação de cultos;
@@ -54,9 +55,17 @@ Para habilitar **Convidar usuário**, publique a função:
 ```bash
 supabase functions deploy create-church
 supabase functions deploy invite-user
+supabase functions deploy lookup-cpf
 ```
 
 As variáveis `SUPABASE_URL`, `SUPABASE_ANON_KEY` e `SUPABASE_SERVICE_ROLE_KEY` pertencem ao ambiente das funções. A `service_role` nunca deve ser colocada no frontend.
+
+Cadastre a chave do Hub do Desenvolvedor como segredo do backend antes de
+publicar a consulta de CPF:
+
+```bash
+supabase secrets set HUB_DESENVOLVEDOR_TOKEN=SUA_CHAVE
+```
 
 ## Fluxo Kids e autorização
 

@@ -74,6 +74,7 @@ import {
   deletePerson,
   loadPublicChildAuthorization,
   loadPublicChurchRegistration,
+  lookupCpf,
   loadWorkspace,
   inviteTeamMember,
   loadTeam,
@@ -1258,7 +1259,7 @@ function EmptyState({
 }) {
   return (
     <section className="empty-state card">
-      <span className="cep-input-row">
+      <span>
         <Icon />
       </span>
       <h2>{title}</h2>
@@ -2119,11 +2120,19 @@ function PersonForm({
               <FormSection title="Identificação">
                 <div className="form-grid">
                   {!isVisitor && (
-                    <Field
-                      label="CPF"
-                      required
+                    <CpfField
                       value={form.document_cpf}
                       onChange={(v) => set("document_cpf", maskCpf(v))}
+                      onResult={(result) =>
+                        setForm((current) => ({
+                          ...current,
+                          full_name: result.name || current.full_name,
+                          birth_date: result.birthDate
+                            ? toBrazilianDate(result.birthDate)
+                            : current.birth_date,
+                          gender: result.gender || current.gender,
+                        }))
+                      }
                     />
                   )}
                   <Field
@@ -5223,15 +5232,24 @@ function PublicChurchRegistrationPage({ token }: { token: string }) {
               <FormSection title="Dados pessoais">
                 <div className="form-grid public-form-grid">
                   {!isVisitor && (
-                    <Field
-                      label="CPF"
-                      required
+                    <CpfField
                       value={form.document_cpf}
                       onChange={(document_cpf) =>
                         setForm({
                           ...form,
                           document_cpf: maskCpf(document_cpf),
                         })
+                      }
+                      registrationToken={token}
+                      onResult={(result) =>
+                        setForm((current) => ({
+                          ...current,
+                          full_name: result.name || current.full_name,
+                          birth_date: result.birthDate
+                            ? toBrazilianDate(result.birthDate)
+                            : current.birth_date,
+                          gender: result.gender || current.gender,
+                        }))
                       }
                     />
                   )}
@@ -7278,6 +7296,79 @@ type CepAddress = Pick<
   Person["address"],
   "street" | "district" | "city" | "state" | "zip"
 >;
+function CpfField({
+  value,
+  onChange,
+  onResult,
+  registrationToken,
+}: {
+  value?: string;
+  onChange: (value: string) => void;
+  onResult: (result: Awaited<ReturnType<typeof lookupCpf>>) => void;
+  registrationToken?: string;
+}) {
+  const [loadingCpf, setLoadingCpf] = useState(false);
+  const [cpfMessage, setCpfMessage] = useState<{
+    text: string;
+    error: boolean;
+  } | null>(null);
+  async function searchCpf() {
+    const cpf = (value ?? "").replace(/\D/g, "");
+    if (cpf.length !== 11) {
+      setCpfMessage({ text: "Digite um CPF com 11 números.", error: true });
+      return;
+    }
+    setLoadingCpf(true);
+    setCpfMessage(null);
+    try {
+      const result = await lookupCpf(cpf, registrationToken);
+      onResult(result);
+      setCpfMessage({
+        text: result.status
+          ? `Dados preenchidos • Situação: ${result.status}`
+          : "Dados encontrados e preenchidos.",
+        error: false,
+      });
+    } catch (reason) {
+      setCpfMessage({
+        text: friendlyErrorMessage(reason, "Não foi possível consultar o CPF."),
+        error: true,
+      });
+    } finally {
+      setLoadingCpf(false);
+    }
+  }
+  return (
+    <label className="cep-field cpf-field">
+      <span className="field-caption">CPF</span>
+      <span className="cep-input-row">
+        <input
+          inputMode="numeric"
+          placeholder="000.000.000-00"
+          value={value ?? ""}
+          onChange={(event) => {
+            onChange(maskCpf(event.target.value));
+            setCpfMessage(null);
+          }}
+        />
+        <button
+          type="button"
+          className="secondary"
+          disabled={loadingCpf}
+          onClick={() => void searchCpf()}
+        >
+          {loadingCpf ? <LoaderCircle className="spin" /> : <Search />}
+          Buscar dados
+        </button>
+      </span>
+      {cpfMessage && (
+        <small className={cpfMessage.error ? "field-error" : "field-success"}>
+          {cpfMessage.text}
+        </small>
+      )}
+    </label>
+  );
+}
 function CepField({
   value,
   onChange,
@@ -7335,7 +7426,7 @@ function CepField({
           </b>
         )}
       </span>
-      <span>
+      <span className="cep-input-row">
         <input
           required={required}
           inputMode="numeric"
